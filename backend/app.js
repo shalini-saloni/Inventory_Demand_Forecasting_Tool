@@ -11,6 +11,7 @@ app.use(express.json());
 app.use(requestLogger);
 
 // Routes
+app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/skus', require('./routes/skus'));
 
 // Basic Route
