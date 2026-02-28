@@ -22,6 +22,21 @@ router.get('/', async (req, res) => {
     }
 });
 
+// @route   POST /api/skus/bulk
+// @desc    Bulk Upload/Update multiple SKUs from Python ML Pipeline
+router.post('/bulk', async (req, res, next) => {
+    try {
+        const { skus } = req.body;
+        if (!skus || !Array.isArray(skus)) {
+            return res.status(400).json({ message: 'Invalid data format. Expected an array of SKUs.' });
+        }
+        // TODO: Implement bulk database insertion logic in Step 7
+        res.status(200).json({ message: 'Bulk route reached', count: skus.length });
+    } catch (err) {
+        next(err);
+    }
+});
+
 // @route   POST /api/skus
 // @desc    Add or Update a SKU and its forecast data
 router.post('/', async (req, res) => {
