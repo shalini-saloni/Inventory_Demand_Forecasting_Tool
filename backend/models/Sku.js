@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+/**
+ * @module models/Sku
+ * @description Mongoose schema for storing SKU inventory data, historical daily sales, 
+ * and generated Holt-Winters forecasts. This collection acts as the single source 
+ * of truth for mathematical forecasting outputs.
+ */
 const SkuSchema = new mongoose.Schema({
     sku_id: { type: String, required: true, unique: true },
     historical_sales: [
