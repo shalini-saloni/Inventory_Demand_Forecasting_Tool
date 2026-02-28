@@ -9,11 +9,10 @@ const registerUser = async (req, res, next) => {
         res.status(201).json(result);
     } catch (err) {
         if (err.message === 'User already exists') {
-            res.status(400);
-        } else {
-            res.status(500);
+            res.status(400).json({ success: false, message: err.message });
+            return;
         }
-        next(err);
+        res.status(500).json({ success: false, message: err.message || 'Registration failed' });
     }
 };
 
@@ -26,11 +25,10 @@ const loginUser = async (req, res, next) => {
         res.status(200).json(result);
     } catch (err) {
         if (err.message === 'Invalid email or password') {
-            res.status(401);
-        } else {
-            res.status(500);
+            res.status(401).json({ success: false, message: err.message });
+            return;
         }
-        next(err);
+        res.status(500).json({ success: false, message: err.message || 'Login failed' });
     }
 };
 
