@@ -13,6 +13,9 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 
+// Routes
+app.use('/api/skus', require('./routes/skus'));
+
 // Basic Route
 app.get('/', (req, res) => {
     res.send('Invenza Backend API is running!');
