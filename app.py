@@ -154,3 +154,39 @@ def save_summary(recommendations: Dict):
 
     plot_restocking_summary(recommendations, save_dir=OUTPUT_DIR)
     print(f"Saved: {OUTPUT_DIR}/restocking_summary.png")
+    
+    
+if __name__ == "__main__":
+
+    print("\n" + "═"*60)
+    print("INVENTORY DEMAND FORECASTING TOOL")
+    print("═"*60)
+
+    df = load_data(CSV_PATH)
+
+    df = filter_data(df)
+
+    print("\nCleaning data...")
+    df, report = clean_dataframe(df)
+    print_cleaning_report(report)
+
+    print("\nRunning EDA...")
+    run_eda(df, output_dir=os.path.join(OUTPUT_DIR, "eda"))
+
+    print("\nQuick stats:")
+    if 'sales' in df.columns:
+        stats = df.groupby('item_id')['sales'].agg(
+            days='count',
+            total='sum',
+            avg='mean',
+            std='std'
+        ).round(2)
+        print(stats.to_string())
+    else:
+        print("⚠ 'sales' column not found. Skipping stats.")
+
+    all_results, recommendations = run_forecast(df)
+
+    save_summary(recommendations)
+
+    print(f"\nAll done! Outputs saved in → {OUTPUT_DIR}/\n")
