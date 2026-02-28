@@ -25,4 +25,10 @@ app.get('/', (req, res) => {
 // Error Middleware
 app.use(errorHandler);
 
+// Initialize Cron Jobs
+const { initCronJobs } = require('./jobs/forecastCron');
+if (process.env.NODE_ENV !== 'test') { // Prevent crons from hanging jest tests
+    initCronJobs();
+}
+
 module.exports = app;
