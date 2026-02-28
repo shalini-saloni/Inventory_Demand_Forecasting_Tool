@@ -1,0 +1,6 @@
+,current_stock,forecasted_demand_total,demand_during_lead_time,recommended_order_qty,days_of_stock_remaining,reorder_alert
+item_1,300,1612.0,354.0,1635.0,5.6,True
+item_2,300,1309.0,292.0,1270.0,6.9,True
+item_3,300,1548.0,341.0,1558.0,5.8,True
+item_4,300,1516.0,328.0,1519.0,5.9,True
+item_5,300,1116.0,246.0,1039.0,8.1,False
