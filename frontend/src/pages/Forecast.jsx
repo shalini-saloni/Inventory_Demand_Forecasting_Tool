@@ -1,310 +1,250 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend } from 'recharts';
-import { RefreshCcw, AlertCircle, Calendar, LineChart as ChartIcon, Activity } from 'lucide-react';
+import {
+    LineChart, Line, XAxis, YAxis, CartesianGrid,
+    Tooltip, ResponsiveContainer, ReferenceLine,
+    Area, ComposedChart, Legend
+} from 'recharts';
+import { RefreshCcw, AlertCircle, Calendar, Activity, TrendingUp, ChevronDown } from 'lucide-react';
+
+const PISTA = '#7ec062';
+const BEIGE = '#b8894a';
+const DARK  = '#2d3a2e';
+const MUTED = '#9db89e';
+
+const MetricChip = ({ label, value, icon: Icon, iconColor }) => (
+    <div className="glass-card p-5">
+        <div className="flex items-center gap-2 mb-2">
+            <Icon size={16} style={{ color: iconColor || PISTA }} />
+            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: MUTED }}>{label}</span>
+        </div>
+        <p className="text-xl font-bold" style={{ color: DARK }}>{value}</p>
+    </div>
+);
+
+const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const fmt = (v) => v != null ? Math.round(v) : '—';
+    return (
+        <div style={{ background: 'rgba(45,58,46,0.96)', borderRadius: 10, padding: '10px 14px', minWidth: 170, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
+            <p style={{ fontSize: 11, color: MUTED, marginBottom: 8, fontWeight: 600 }}>
+                {new Date(label).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+            </p>
+            {payload.map(p => p.value != null && (
+                <p key={p.dataKey} style={{ fontSize: 13, color: p.color || '#fff', margin: '3px 0' }}>
+                    {p.name}: <strong>{fmt(p.value)}</strong>
+                </p>
+            ))}
+        </div>
+    );
+};
 
 const Forecast = () => {
-    const [skus, setSkus] = useState([]);
-    const [selectedSku, setSelectedSku] = useState('');
-    const [forecastData, setForecastData] = useState(null);
-    const [chartData, setChartData] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [generating, setGenerating] = useState(false);
-    const [error, setError] = useState('');
+    const [skus,         setSkus]         = useState([]);
+    const [selectedSku,  setSelectedSku]  = useState('');
+    const [chartData,    setChartData]    = useState([]);
+    const [summaryRow,   setSummaryRow]   = useState(null);
+    const [loading,      setLoading]      = useState(false);
+    const [skuLoading,   setSkuLoading]   = useState(true);
+    const [error,        setError]        = useState('');
 
+    // Load distinct SKUs from the flat skus collection
     useEffect(() => {
-        const fetchSkus = async () => {
-            try {
-                const res = await api.get('/api/items');
-                setSkus(res.data);
-                if (res.data.length > 0) {
-                    setSelectedSku(res.data[0]._id || res.data[0].sku); // Fallback to sku if _id is not used smoothly
-                }
-            } catch (err) {
-                console.error('Failed to fetch SKUs', err);
-            }
-        };
-        fetchSkus();
+        api.get('/api/skus')
+            .then(res => {
+                const list = Array.isArray(res.data) ? res.data : [];
+                setSkus(list);
+                if (list.length > 0) setSelectedSku(list[0].sku_id);
+            })
+            .catch(err => console.error('Failed to fetch SKUs', err))
+            .finally(() => setSkuLoading(false));
     }, []);
 
     useEffect(() => {
-        if (selectedSku) {
-            fetchForecast(selectedSku);
-        }
+        if (selectedSku) fetchForecast(selectedSku);
     }, [selectedSku]);
 
-    const formatChartData = (data) => {
-        if (!data) return [];
-
-        let formatted = [];
-
-        // Handle variations in backend response structures
-        if (data.historical_sales && data.forecast) {
-            const { historical_sales, forecast } = data;
-
-            historical_sales.forEach(point => {
-                formatted.push({
-                    date: point.date,
-                    sales: point.quantity || point.sales,
-                    forecast: null,
-                    lowerBound: null,
-                    upperBound: null
-                });
-            });
-
-            // Check if forecast is an array of objects or an object of arrays
-            if (Array.isArray(forecast)) {
-                forecast.forEach(point => {
-                    formatted.push({
-                        date: point.date,
-                        sales: null,
-                        forecast: point.forecast,
-                        lowerBound: point.lowerBound || (point.forecast * 0.9),
-                        upperBound: point.upperBound || (point.forecast * 1.1)
-                    });
-                });
-            } else if (forecast.dates && forecast.predictions) {
-                forecast.dates.forEach((date, i) => {
-                    formatted.push({
-                        date,
-                        sales: null,
-                        forecast: forecast.predictions[i],
-                        lowerBound: forecast.lower_bound ? forecast.lower_bound[i] : forecast.predictions[i] * 0.9,
-                        upperBound: forecast.upper_bound ? forecast.upper_bound[i] : forecast.predictions[i] * 1.1
-                    });
-                });
-            }
-        }
-
-        // Sort by date just in case
-        formatted.sort((a, b) => new Date(a.date) - new Date(b.date));
-        return formatted;
-    };
-
-    const fetchForecast = async (itemId) => {
-        setLoading(true);
-        setError('');
+    const fetchForecast = async (skuId) => {
+        setLoading(true); setError('');
         try {
-            const res = await api.get(`/api/forecast/${itemId}`);
-            setForecastData(res.data);
-            setChartData(formatChartData(res.data));
+            const res = await api.get(`/api/skus?sku_id=${encodeURIComponent(skuId)}`);
+            const rows = Array.isArray(res.data) ? res.data : [];
+
+            const summary = rows.find(r => r.type === 'forecast_summary') || null;
+            setSummaryRow(summary);
+
+            // Build chart data from historical + forecast rows only
+            const chart = rows
+                .filter(r => r.type === 'historical' || r.type === 'forecast')
+                .map(r => ({
+                    date:        r.date,
+                    historical:  r.type === 'historical' ? (r.units_sold ?? null) : null,
+                    forecast:    r.type === 'forecast'   ? (r.expected   ?? null) : null,
+                    lower:       r.type === 'forecast'   ? (r.lower_bound ?? null) : null,
+                    upper:       r.type === 'forecast'   ? (r.upper_bound ?? null) : null,
+                }))
+                .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            setChartData(chart);
         } catch (err) {
             if (err.response?.status === 404) {
-                setForecastData(null);
-                setChartData([]);
-                setError('No forecast exists for this item yet. Generate one to view the predictions.');
+                setError(`No data found for "${skuId}". Make sure it was included in your CSV upload.`);
+                setChartData([]); setSummaryRow(null);
             } else {
-                setError('Failed to fetch forecast. Please try again later.');
+                setError('Failed to fetch forecast data.');
             }
         } finally {
             setLoading(false);
         }
     };
 
-    const generateForecast = async () => {
-        if (!selectedSku) return;
-        setGenerating(true);
-        setError('');
-        try {
-            const res = await api.post(`/api/forecast/${selectedSku}`);
-            setForecastData(res.data);
-            setChartData(formatChartData(res.data));
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to generate forecast.');
-        } finally {
-            setGenerating(false);
-        }
-    };
-
-    const firstForecastPoint = chartData.find(d => d.forecast !== null);
-    const splitDate = firstForecastPoint ? firstForecastPoint.date : null;
+    const historicalCount = chartData.filter(d => d.historical != null).length;
+    const forecastCount   = chartData.filter(d => d.forecast   != null).length;
+    const splitDate       = chartData.find(d => d.forecast != null)?.date ?? null;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5 animate-fade-in">
+            {/* Header + SKU Selector */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">Demand Forecasting</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">Visualize actual sales vs ML predictions with confidence intervals.</p>
+                    <h1 className="text-2xl font-bold mb-1" style={{ color: DARK }}>Demand Forecasting</h1>
+                    <p className="text-sm" style={{ color: MUTED }}>Visualize historical sales vs ML predictions with confidence intervals.</p>
                 </div>
-
-                {/* SKU Selector */}
-                <div className="flex items-center gap-3">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Select Item:</label>
-                    <div className="relative min-w-[200px]">
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium whitespace-nowrap" style={{ color: '#4a6a4b' }}>Item:</label>
+                    <div className="relative">
                         <select
                             value={selectedSku}
-                            onChange={(e) => setSelectedSku(e.target.value)}
-                            className="w-full appearance-none pl-4 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-shadow"
+                            onChange={e => setSelectedSku(e.target.value)}
+                            disabled={skuLoading}
+                            style={{
+                                appearance: 'none', padding: '0.55rem 2.5rem 0.55rem 0.875rem',
+                                border: '1.5px solid rgba(168,214,143,0.5)', borderRadius: 10,
+                                background: 'rgba(253,250,245,0.95)', color: DARK,
+                                fontSize: 14, fontWeight: 600, minWidth: 160, outline: 'none',
+                            }}
                         >
-                            {skus.map(sku => (
-                                <option key={sku._id || sku.sku} value={sku._id || sku.sku}>
-                                    {sku.sku} - {sku.name}
-                                </option>
-                            ))}
+                            {skuLoading
+                                ? <option>Loading…</option>
+                                : skus.length === 0
+                                    ? <option>No SKUs found — upload CSV first</option>
+                                    : skus.map(s => <option key={s.sku_id} value={s.sku_id}>{s.sku_id}</option>)
+                            }
                         </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-500">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                        </div>
+                        <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: MUTED, pointerEvents: 'none' }} />
                     </div>
                 </div>
             </div>
 
-            {error && !forecastData && (
-                <div className="glass-card p-8 flex flex-col items-center justify-center text-center">
-                    <div className="p-4 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full mb-4">
-                        <AlertCircle size={32} />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{error}</h3>
-                    <button
-                        onClick={generateForecast}
-                        disabled={generating}
-                        className="mt-4 flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-all disabled:opacity-50"
-                    >
-                        {generating ? <RefreshCcw className="animate-spin" size={18} /> : <ChartIcon size={18} />}
-                        {generating ? 'Running ML Pipeline...' : 'Generate ML Forecast'}
-                    </button>
+            {/* Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <MetricChip label="Total Predicted Demand" value={summaryRow ? summaryRow.total_predicted_demand?.toLocaleString() ?? 'N/A' : '—'} icon={TrendingUp} />
+                <MetricChip label="Historical Days"  value={historicalCount ? `${historicalCount} days` : '—'} icon={Calendar}  iconColor={BEIGE} />
+                <MetricChip label="Forecast Days"    value={forecastCount   ? `${forecastCount} days`   : '—'} icon={Activity}  iconColor="#6ab0d4" />
+            </div>
+
+            {/* Error state */}
+            {error && (
+                <div className="glass-card p-6 flex items-start gap-3 text-sm"
+                    style={{ borderColor: 'rgba(252,165,165,0.4)', background: 'rgba(254,202,202,0.2)' }}>
+                    <AlertCircle size={18} style={{ color: '#dc2626', flexShrink: 0, marginTop: 1 }} />
+                    <p style={{ color: '#991b1b' }}>{error}</p>
                 </div>
             )}
 
-            {!error && forecastData && chartData.length > 0 && (
-                <div className="space-y-6">
-                    {/* Metrics Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="glass-card p-5">
-                            <div className="flex items-center gap-3 text-slate-500 mb-2">
-                                <Activity size={18} className="text-blue-500" />
-                                <span className="font-medium">Selected Model</span>
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-white capitalize">
-                                {forecastData.best_model || forecastData.model || 'Holt-Winters'}
-                            </h3>
-                            <p className="text-xs text-emerald-500 mt-1">Best fit for selected item</p>
+            {/* Chart */}
+            {!error && (
+                <div className="glass-card p-6">
+                    <div className="flex items-center justify-between mb-5">
+                        <div>
+                            <h3 className="text-base font-bold" style={{ color: DARK }}>Demand Curve & Confidence Intervals</h3>
+                            <p className="text-xs" style={{ color: MUTED }}>Dashed line = ML forecast · Shaded band = 95% confidence interval</p>
                         </div>
-                        <div className="glass-card p-5">
-                            <div className="flex items-center gap-3 text-slate-500 mb-2">
-                                <ChartIcon size={18} className="text-indigo-500" />
-                                <span className="font-medium">Model Metrics (MAE)</span>
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                                {forecastData.metrics?.mae?.toFixed(2) || 'N/A'}
-                            </h3>
-                            <p className="text-xs text-slate-400 mt-1">Mean Absolute Error</p>
-                        </div>
-                        <div className="glass-card p-5 flex flex-col justify-center">
-                            <button
-                                onClick={generateForecast}
-                                disabled={generating}
-                                className="w-full flex justify-center items-center gap-2 px-4 py-3 border border-slate-200 dark:border-slate-800 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-medium transition-all"
-                            >
-                                <RefreshCcw className={generating ? 'animate-spin' : ''} size={18} />
-                                {generating ? 'Regenerating...' : 'Regenerate Forecast'}
-                            </button>
+                        <div className="flex items-center gap-4 text-xs" style={{ color: MUTED }}>
+                            <span className="flex items-center gap-1.5"><span style={{ width: 20, height: 2.5, background: '#9db89e', display: 'inline-block', borderRadius: 2 }}></span>Historical</span>
+                            <span className="flex items-center gap-1.5"><span style={{ width: 20, height: 2.5, background: PISTA, display: 'inline-block', borderRadius: 2, borderTop: `2px dashed ${PISTA}` }}></span>Forecast</span>
+                            <span className="flex items-center gap-1.5"><span style={{ width: 14, height: 10, background: 'rgba(126,192,98,0.2)', display: 'inline-block', borderRadius: 2 }}></span>95% CI</span>
                         </div>
                     </div>
 
-                    {/* Chart Container */}
-                    <div className="glass-card p-6">
-                        <div className="flex flex-col sm:flex-row items-center justify-between mb-6">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Demand Curve & Confidence Intervals</h3>
-                            <div className="flex items-center gap-4 text-sm mt-3 sm:mt-0">
-                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-slate-400"></div><span className="text-slate-600 dark:text-slate-400">Historical</span></div>
-                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div><span className="text-slate-600 dark:text-slate-400">Forecast</span></div>
-                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500/20 mix-blend-multiply dark:mix-blend-screen"></div><span className="text-slate-600 dark:text-slate-400">95% CI</span></div>
-                            </div>
+                    {loading ? (
+                        <div className="flex items-center justify-center h-72">
+                            <div className="w-8 h-8 border-2 rounded-xl animate-spin"
+                                style={{ borderColor: 'rgba(168,214,143,0.2)', borderTopColor: PISTA }}></div>
                         </div>
-
-                        <div className="h-[400px] w-full">
+                    ) : chartData.length === 0 ? (
+                        <div className="flex items-center justify-center h-72 text-sm" style={{ color: MUTED }}>
+                            No chart data available for this SKU.
+                        </div>
+                    ) : (
+                        <div style={{ height: 380 }}>
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
+                                <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 20 }}>
+                                    <defs>
+                                        <linearGradient id="ciGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%"   stopColor={PISTA} stopOpacity={0.2} />
+                                            <stop offset="100%" stopColor={PISTA} stopOpacity={0.04} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(168,214,143,0.2)" />
                                     <XAxis
                                         dataKey="date"
-                                        tick={{ fill: '#64748b', fontSize: 12 }}
-                                        tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                        dy={10}
-                                        minTickGap={30}
-                                        axisLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                                        tickLine={false}
+                                        axisLine={false} tickLine={false}
+                                        tick={{ fill: MUTED, fontSize: 11 }} dy={8}
+                                        minTickGap={28}
+                                        tickFormatter={v => new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                     />
-                                    <YAxis
-                                        tick={{ fill: '#64748b', fontSize: 12 }}
-                                        dx={-10}
-                                        axisLine={false}
-                                        tickLine={false}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.95)', border: 'none', borderRadius: '8px', color: '#fff', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        itemStyle={{ color: '#fff' }}
-                                        labelStyle={{ color: '#94a3b8', marginBottom: '4px', fontWeight: 'bold' }}
-                                        labelFormatter={(val) => new Date(val).toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric' })}
-                                    />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: MUTED, fontSize: 11 }} dx={-4} />
+                                    <Tooltip content={<CustomTooltip />} />
 
-                                    {/* Confidence Interval Band */}
-                                    <Area
-                                        type="monotone"
-                                        dataKey="upperBound"
-                                        stroke="none"
-                                        fill="#3b82f6"
-                                        fillOpacity={0.15}
-                                        activeDot={false}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="lowerBound"
-                                        stroke="none"
-                                        fill="#f8fafc" // This acts as a cutout for light base, or we can use custom transparent gradient
-                                        fillOpacity={0.8}
-                                        className="dark:hidden"
-                                        activeDot={false}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="lowerBound"
-                                        stroke="none"
-                                        fill="#0f172a" // Masking for dark mode
-                                        fillOpacity={1}
-                                        className="hidden dark:block"
-                                        activeDot={false}
-                                    />
+                                    {/* 95% CI shaded band */}
+                                    <Area type="monotone" dataKey="upper" stroke="none" fill="url(#ciGrad)"
+                                        name="Upper CI" legendType="none" activeDot={false} />
+                                    <Area type="monotone" dataKey="lower" stroke="none"
+                                        fill="rgba(253,250,245,0.9)" name="Lower CI" legendType="none" activeDot={false} />
 
-                                    <Line
-                                        type="monotone"
-                                        dataKey="sales"
-                                        stroke="#94a3b8"
-                                        strokeWidth={2.5}
-                                        dot={{ r: 3, fill: '#94a3b8', strokeWidth: 0 }}
-                                        activeDot={{ r: 6, strokeWidth: 0, fill: '#64748b' }}
-                                        name="Historical Sales"
-                                    />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="forecast"
-                                        stroke="#3b82f6"
-                                        strokeWidth={3}
-                                        strokeDasharray="5 5"
-                                        dot={{ r: 3, fill: '#3b82f6', strokeWidth: 0 }}
-                                        activeDot={{ r: 6, strokeWidth: 0, fill: '#2563eb' }}
-                                        name="Forecast Value"
-                                    />
+                                    {/* Historical line */}
+                                    <Line type="monotone" dataKey="historical" stroke="#9db89e" strokeWidth={2.5}
+                                        dot={{ r: 2.5, fill: '#9db89e', strokeWidth: 0 }}
+                                        activeDot={{ r: 6, fill: '#7a9a7b', strokeWidth: 0 }}
+                                        connectNulls={false} name="Historical" />
 
+                                    {/* Forecast line */}
+                                    <Line type="monotone" dataKey="forecast" stroke={PISTA} strokeWidth={2.5}
+                                        strokeDasharray="6 4"
+                                        dot={{ r: 2.5, fill: PISTA, strokeWidth: 0 }}
+                                        activeDot={{ r: 6, fill: '#5ba63e', strokeWidth: 0 }}
+                                        connectNulls={false} name="Forecast" />
+
+                                    {/* Split reference line */}
                                     {splitDate && (
-                                        <ReferenceLine
-                                            x={splitDate}
-                                            stroke="#64748b"
-                                            strokeDasharray="3 3"
-                                            label={{ position: 'top', value: 'Forecast Start', fill: '#64748b', fontSize: 12 }}
-                                        />
+                                        <ReferenceLine x={splitDate} stroke="rgba(168,214,143,0.6)"
+                                            strokeDasharray="4 3"
+                                            label={{ value: 'Forecast Start', position: 'top', fill: MUTED, fontSize: 11 }} />
                                     )}
-                                </LineChart>
+                                </ComposedChart>
                             </ResponsiveContainer>
                         </div>
-                    </div>
+                    )}
                 </div>
             )}
 
-            {loading && !generating && (
-                <div className="flex items-center justify-center h-64 glass-card">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            {/* Summary details card */}
+            {summaryRow && (
+                <div className="glass-card p-5">
+                    <h3 className="text-sm font-bold mb-4" style={{ color: DARK }}>Forecast Summary — {selectedSku}</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                        {[
+                            ['Total Predicted Demand', summaryRow.total_predicted_demand?.toLocaleString() ?? '—'],
+                            ['Safety Stock',           summaryRow.safety_stock  ?? '—'],
+                            ['Reorder Point',          summaryRow.reorder_point ?? '—'],
+                        ].map(([label, value]) => (
+                            <div key={label} className="p-3 rounded-xl" style={{ background: 'rgba(168,214,143,0.08)', border: '1px solid rgba(168,214,143,0.2)' }}>
+                                <p className="text-xs mb-1" style={{ color: MUTED }}>{label}</p>
+                                <p className="text-lg font-bold" style={{ color: DARK }}>{value}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

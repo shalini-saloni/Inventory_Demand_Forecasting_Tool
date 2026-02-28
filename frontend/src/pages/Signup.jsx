@@ -1,145 +1,140 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
-import { Package, Lock, Mail, User, ArrowRight } from 'lucide-react';
+import { Box, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+
+const DARK  = '#2d3a2e';
+const MUTED = '#9db89e';
+const PISTA = '#7ec062';
 
 const Signup = () => {
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
+    const [name,     setName]     = useState('');
+    const [email,    setEmail]    = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+    const [showPw,   setShowPw]   = useState(false);
+    const [loading,  setLoading]  = useState(false);
+    const [error,    setError]    = useState('');
     const { signup } = useAuth();
-    const navigate = useNavigate();
+    const navigate   = useNavigate();
+
+    const pwStrength = password.length === 0 ? 0 : password.length < 6 ? 1 : password.length < 10 ? 2 : 3;
+    const pwColors   = ['', '#e85656', '#e8924a', PISTA];
+    const pwLabels   = ['', 'Weak', 'Fair', 'Strong'];
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
         setError('');
-        setIsLoading(true);
         const result = await signup(name, email, password);
         if (result.success) {
             navigate('/dashboard');
         } else {
-            setError(result.error);
+            setError(result.error || 'Signup failed. Please try again.');
         }
-        setIsLoading(false);
+        setLoading(false);
     };
 
     return (
-        <div className="min-h-screen flex text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-950">
-            {/* Left side styling - Branding */}
-            <div className="hidden lg:flex w-1/2 bg-blue-600 relative items-center justify-center border-r border-slate-200 dark:border-slate-800 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-800 to-blue-900 opacity-90 z-0"></div>
-                <div className="absolute opacity-20 transform translate-x-1/4 translate-y-1/4 z-0">
-                    <Package size={600} />
-                </div>
-                <div className="relative z-10 px-12 text-white">
-                    <h1 className="text-5xl font-extrabold tracking-tight mb-6">Invenza</h1>
-                    <p className="text-xl font-medium text-blue-100 mb-4 max-w-md">
-                        Join the Supply Chain Revolution
-                    </p>
-                    <p className="text-blue-200 text-sm max-w-sm leading-relaxed">
-                        Create an account to start analyzing sales data, forecasting demand, and reducing carrying costs globally.
-                    </p>
-                </div>
+        <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #f4faf0 0%, #fdfaf5 50%, #f7f4ee 100%)' }}>
+            <div className="fixed inset-0 pointer-events-none overflow-hidden">
+                <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full blur-3xl opacity-30" style={{ background: 'radial-gradient(circle, rgba(221,198,158,0.4), transparent)' }} />
+                <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full blur-3xl opacity-25" style={{ background: 'radial-gradient(circle, rgba(126,192,98,0.35), transparent)' }} />
             </div>
 
-            {/* Right side - Form */}
-            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12">
-                <div className="w-full max-w-md">
-                    <div className="flex items-center gap-2 mb-8 lg:hidden">
-                        <div className="p-2 bg-blue-600 rounded-lg text-white">
-                            <Package size={24} />
-                        </div>
-                        <h1 className="text-2xl font-bold tracking-tight">Invenza</h1>
+            <div className="relative w-full max-w-md animate-fade-in">
+                <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 shadow-lg" style={{ background: 'linear-gradient(135deg, #7ec062, #5ba63e)' }}>
+                        <Box size={28} color="white" />
                     </div>
+                    <h1 className="text-3xl font-bold" style={{ color: DARK }}>
+                        Inven<span style={{ color: '#5ba63e' }}>za</span>
+                    </h1>
+                    <p className="text-sm mt-1" style={{ color: MUTED }}>Create your account</p>
+                </div>
 
-                    <div className="mb-10 text-center lg:text-left">
-                        <h2 className="text-3xl font-bold mb-2">Create an account</h2>
-                        <p className="text-slate-500 dark:text-slate-400">Get started with intelligent forecasting</p>
-                    </div>
+                <div className="rounded-2xl p-8" style={{
+                    background: 'rgba(253,250,245,0.9)',
+                    backdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(168,214,143,0.3)',
+                    boxShadow: '0 8px 48px rgba(91,166,62,0.1), 0 2px 8px rgba(0,0,0,0.04)',
+                }}>
+                    <h2 className="text-xl font-bold mb-1" style={{ color: DARK }}>Get started</h2>
+                    <p className="text-sm mb-6" style={{ color: MUTED }}>Fill in your details below</p>
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        {error && (
-                            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm border border-red-200 dark:border-red-800/50 text-center">
-                                {error}
-                            </div>
-                        )}
-
-                        <div>
-                            <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">
-                                Full Name
-                            </label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                    <User size={18} />
-                                </div>
-                                <input
-                                    type="text"
-                                    required
-                                    className="block w-full pl-10 pr-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-                                    placeholder="John Doe"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                />
-                            </div>
+                    {error && (
+                        <div className="mb-5 p-3.5 rounded-xl flex items-center gap-3 text-sm" style={{ background: 'rgba(254,202,202,0.3)', border: '1px solid rgba(252,165,165,0.45)', color: '#991b1b' }}>
+                            <AlertCircle size={17} style={{ flexShrink: 0 }} />
+                            {error}
                         </div>
+                    )}
 
+                    <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">
-                                Email Address
-                            </label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                    <Mail size={18} />
-                                </div>
-                                <input
-                                    type="email"
-                                    required
-                                    className="block w-full pl-10 pr-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-                                    placeholder="admin@invenza.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                />
-                            </div>
+                            <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: MUTED }}>Full Name</label>
+                            <input type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" className="input-field" autoComplete="name" />
                         </div>
-
                         <div>
-                            <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">
-                                Password
-                            </label>
+                            <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: MUTED }}>Email</label>
+                            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" className="input-field" autoComplete="email" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: MUTED }}>Password</label>
                             <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                    <Lock size={18} />
-                                </div>
                                 <input
-                                    type="password"
+                                    type={showPw ? 'text' : 'password'}
                                     required
-                                    className="block w-full pl-10 pr-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-                                    placeholder="••••••••"
+                                    minLength={6}
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={e => setPassword(e.target.value)}
+                                    placeholder="Min. 6 characters"
+                                    className="input-field pr-11"
+                                    autoComplete="new-password"
                                 />
+                                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5" style={{ color: MUTED }}>
+                                    {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
+                                </button>
                             </div>
-                            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Must be at least 6 characters.</p>
+                            {/* Strength bar */}
+                            {password.length > 0 && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <div className="flex gap-1 flex-1">
+                                        {[1,2,3].map(i => (
+                                            <div key={i} className="h-1.5 flex-1 rounded-full transition-all duration-300"
+                                                style={{ background: i <= pwStrength ? pwColors[pwStrength] : 'rgba(168,214,143,0.2)' }} />
+                                        ))}
+                                    </div>
+                                    <span className="text-xs font-semibold" style={{ color: pwColors[pwStrength] }}>{pwLabels[pwStrength]}</span>
+                                </div>
+                            )}
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full flex justify-center items-center gap-2 mt-4 py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        >
-                            {isLoading ? 'Creating account...' : 'Create account'}
-                            {!isLoading && <ArrowRight size={18} />}
+                        {/* Feature bullets */}
+                        <div className="rounded-xl p-3.5" style={{ background: 'rgba(168,214,143,0.08)', border: '1px solid rgba(168,214,143,0.2)' }}>
+                            {['ML-powered demand forecasting', 'Automated restock recommendations', 'Real-time inventory insights'].map(f => (
+                                <div key={f} className="flex items-center gap-2 text-xs py-0.5">
+                                    <CheckCircle2 size={13} style={{ color: PISTA, flexShrink: 0 }} />
+                                    <span style={{ color: '#4a6a4b' }}>{f}</span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 py-3 mt-2">
+                            {loading
+                                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Creating account…</>
+                                : <>Create Account <ArrowRight size={16} /></>
+                            }
                         </button>
                     </form>
 
-                    <div className="mt-8 text-center text-sm">
-                        <span className="text-slate-500 dark:text-slate-400">Already have an account? </span>
-                        <Link to="/login" className="font-medium text-blue-600 dark:text-blue-500 hover:underline">
+                    <p className="text-center text-sm mt-6" style={{ color: MUTED }}>
+                        Already have an account?{' '}
+                        <Link to="/login" className="font-semibold" style={{ color: '#3d7a28' }}
+                            onMouseEnter={e => e.target.style.color = PISTA}
+                            onMouseLeave={e => e.target.style.color = '#3d7a28'}
+                        >
                             Sign in
                         </Link>
-                    </div>
+                    </p>
                 </div>
             </div>
         </div>
