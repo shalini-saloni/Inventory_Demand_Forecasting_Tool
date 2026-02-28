@@ -14,6 +14,9 @@ app.use(cors());
 app.use(express.json());
 
 const { errorHandler } = require('./middleware/errorMiddleware');
+const { requestLogger } = require('./middleware/loggerMiddleware');
+
+app.use(requestLogger);
 
 // Routes
 app.use('/api/skus', require('./routes/skus'));
