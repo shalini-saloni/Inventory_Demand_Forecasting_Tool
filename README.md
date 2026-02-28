@@ -68,24 +68,19 @@ Forecast demand + quantify uncertainty + optimize inventory decisions.
 
 ```mermaid
 flowchart LR
-    User --> Frontend
-    Frontend --> Backend
-    Backend --> ForecastEngine
-    Backend --> InventoryModule
-    Backend --> Database
-    Database --> Backend
-    Backend --> Frontend
+    User --> ReactFrontend
+    ReactFrontend --> NodeAPI
+    NodeAPI --> MongoDB
+    PythonMLPipeline --> MongoDB
 ```
 
 ## Architecture Description
-1. User selects SKU  
-2. Frontend sends request to backend  
-3. Backend fetches historical sales  
-4. Forecast model generates prediction  
-5. Confidence interval computed  
-6. Safety stock calculated  
-7. Reorder point returned  
-8. Dashboard visualizes results  
+1. Python Data Pipeline loads CSV and calculates Holt-Winters forecast.
+2. Python Pipeline pushes historical and forecast data to MongoDB via NodeAPI.
+3. User selects SKU on the React Frontend.
+4. Frontend requests forecast from NodeAPI.
+5. NodeAPI retrieves data from MongoDB and serves it to the client.
+6. Dashboard visualizes results (Total Demand, Safety Stock, Reorder Point).
 
 ---
 
@@ -135,12 +130,9 @@ SKU -->|1 to Many| FORECAST
 
 ```mermaid
 flowchart TD
-    ReactUI --> FastAPI
-    FastAPI --> DataProcessing
-    FastAPI --> ForecastingModule
-    FastAPI --> InventoryModule
-    ForecastingModule --> Database
-    InventoryModule --> Database
+    ReactUI --> NodeAPI
+    NodeAPI --> MongoDB
+    PythonMLPipeline --> MongoDB
 ```
 
 ---
@@ -259,20 +251,19 @@ Holt-Winters Exponential Smoothing
 
 #  9. Technology Stack
 
-Frontend: React + Chart.js  
-Backend: FastAPI  
-ML: Python (statsmodels, pandas, numpy)  
-Database: SQLite  
+Frontend: React + Vite (Recharts)  
+Backend API: Node.js (Express, Mongoose)  
+Database: MongoDB  
+ML Pipeline: Python (statsmodels, pandas, numpy)  
 Deployment: Render + Vercel  
 
 ---
 
 #  10. API Endpoints
 
-- GET /  
-- GET /forecast/{store_id}/{sku_id}  
-- GET /skus  
-- GET /inventory/{sku_id}  
+- GET /api/skus (Retrieve all SKUs)
+- GET /api/skus?sku_id={sku_id} (Retrieve data for a specific SKU)
+- POST /api/skus (Push calculated forecast data into DB)
 
 ---
 
