@@ -1,19 +1,23 @@
 import pandas as pd
+import numpy as np
+import os
+import sys
+from typing import Tuple, Dict
 
-df = pd.read_csv("data/retail_sales.csv")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-df['date'] = pd.to_datetime(df['date'])
+from src.data_cleaner       import clean_dataframe, print_cleaning_report
+from src.forecasting_engine import DemandForecaster
+from src.visualizer         import plot_item_dashboard, plot_restocking_summary
+from src.eda                import run_eda
 
-df_2023 = df[df['date'].dt.year == 2023]
 
-selected_items = ['item_1','item_2','item_3','item_4','item_5']
-
-df_small = df_2023[
-    (df_2023['store_id'] == 'store_1') &
-    (df_2023['item_id'].isin(selected_items))
-]
-
-print(df_small.shape)
-
-df_small.to_csv("data/retail_sales_2023_small.csv", index=False)
-df = pd.read_csv("data/retail_sales_2023_small.csv")
+CSV_PATH        = "data/retail_sales_2023_small.csv"
+OUTPUT_DIR      = "outputs"
+SELECTED_ITEMS  = ['item_1', 'item_2', 'item_3', 'item_4', 'item_5']
+TARGET_STORE    = 'store_1'
+HORIZON         = 30
+SEASONAL_PERIOD = 7
+CURRENT_STOCK   = 300
+LEAD_TIME       = 7
+SAFETY_FACTOR   = 1.2
