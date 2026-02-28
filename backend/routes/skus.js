@@ -2,6 +2,19 @@ const express = require('express');
 const router = express.Router();
 const Sku = require('../models/Sku');
 
+// @route   GET /api/skus/summary
+// @desc    Get an aggregated summary of all forecasts
+router.get('/summary', async (req, res, next) => {
+    try {
+        const skus = await Sku.find({}, 'sku_id forecast');
+        const total_global_demand = skus.reduce((sum, sku) => sum + (sku.forecast?.total_predicted_demand || 0), 0);
+        const total_skus = skus.length;
+        res.json({ total_global_demand, total_skus, items: skus });
+    } catch (err) {
+        next(err);
+    }
+});
+
 // @route   GET /api/skus
 // @desc    Get all SKUs (or a specific one if query param provided)
 router.get('/', async (req, res) => {
