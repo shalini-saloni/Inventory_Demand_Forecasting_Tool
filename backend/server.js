@@ -13,6 +13,8 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 
+const { errorHandler } = require('./middleware/errorMiddleware');
+
 // Routes
 app.use('/api/skus', require('./routes/skus'));
 
@@ -20,6 +22,9 @@ app.use('/api/skus', require('./routes/skus'));
 app.get('/', (req, res) => {
     res.send('Invenza Backend API is running!');
 });
+
+// Error Middleware
+app.use(errorHandler);
 
 // Start Server
 app.listen(PORT, () => {
