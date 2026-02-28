@@ -30,8 +30,16 @@ router.post('/bulk', async (req, res, next) => {
         if (!skus || !Array.isArray(skus)) {
             return res.status(400).json({ message: 'Invalid data format. Expected an array of SKUs.' });
         }
-        // TODO: Implement bulk database insertion logic in Step 7
-        res.status(200).json({ message: 'Bulk route reached', count: skus.length });
+        const operations = skus.map((skuData) => ({
+            updateOne: {
+                filter: { sku_id: skuData.sku_id },
+                update: { $set: { ...skuData, last_updated: Date.now() } },
+                upsert: true
+            }
+        }));
+
+        const result = await Sku.bulkWrite(operations);
+        res.status(200).json({ message: 'Bulk update successful', result });
     } catch (err) {
         next(err);
     }
