@@ -12,7 +12,8 @@ app.use(requestLogger);
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/skus', require('./routes/skus'));
+app.use('/api/skus', require('./routes/skus')); // Legacy fallback if needed
+app.use('/api/items', require('./routes/itemRoutes'));
 
 // Basic Route
 app.get('/', (req, res) => {
