@@ -35,11 +35,15 @@ If you prefer not to install MongoDB locally:
 
 1. Go to https://www.mongodb.com/cloud/atlas
 2. Create a free account and cluster
-3. Update `.env` file in `backend/` folder:
+3. Copy your connection string from Atlas (it will look like):
    ```
-   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/invenza_forecasting
+   mongodb+srv://<username>:<password>@cluster-name.mongodb.net/invenza_forecasting?retryWrites=true&w=majority
    ```
-4. Use your Atlas connection string
+4. Update `.env` file in `backend/` folder with your actual credentials:
+   ```
+   MONGODB_URI=your_atlas_connection_string_here
+   ```
+5. **⚠️ IMPORTANT:** Never commit `.env` file to git - it's already in `.gitignore`
 
 ### Option C: Using Docker (If Docker is installed)
 

@@ -2,4 +2,25 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
+
+# Environment variables - NEVER commit
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build outputs
+dist/
+build/
+*.egg-info/
 data/retail_sales.csv
