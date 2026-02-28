@@ -87,3 +87,41 @@ def _plot_monthly_trend(df, items, out):
     plt.tight_layout()
     fig.savefig(f"{out}/03_monthly_trend.png", dpi=150, bbox_inches='tight')
     plt.close()
+    
+def _plot_distribution(df, items, out):
+    fig, axes = plt.subplots(1, len(items), figsize=(4 * len(items), 4), sharey=True)
+    if len(items) == 1:
+        axes = [axes]
+    fig.suptitle('Sales Distribution per Item', fontsize=13, fontweight='bold')
+
+    for ax, item, color in zip(axes, items, COLORS):
+        s = df[df['item_id'] == item]['sales']
+        ax.hist(s, bins=30, color=color, alpha=0.75, edgecolor='white')
+        ax.axvline(s.mean(),   color='black', linestyle='--', linewidth=1.5,
+                   label=f'Mean={s.mean():.1f}')
+        ax.axvline(s.median(), color='gray',  linestyle=':',  linewidth=1.5,
+                   label=f'Median={s.median():.1f}')
+        ax.set_title(item, fontsize=10, fontweight='bold')
+        ax.set_xlabel('Daily Sales')
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.spines[['top', 'right']].set_visible(False)
+
+    axes[0].set_ylabel('Frequency')
+    plt.tight_layout()
+    fig.savefig(f"{out}/04_sales_distribution.png", dpi=150, bbox_inches='tight')
+    plt.close()
+
+
+def _print_stats(df, items):
+    print("\n  📊  Descriptive Statistics per Item:")
+    print("  " + "─" * 60)
+    stats = df.groupby('item_id')['sales'].agg(
+        days='count', total='sum',
+        mean='mean',  std='std',
+        min='min',    q25=lambda x: x.quantile(0.25),
+        median='median', q75=lambda x: x.quantile(0.75),
+        max='max'
+    ).round(1)
+    print(stats.to_string())
+    print("  " + "─" * 60)
