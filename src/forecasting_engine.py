@@ -70,3 +70,77 @@ class DemandForecaster:
             'ci_lower': ci_lower,
             'aic':      fit.aic,
         }
+        
+    def holt_winters_forecast(self, series: pd.Series, horizon: int = 30) -> dict:
+        sp = self.seasonal_period
+        if len(series) >= 2 * sp:
+            model    = ExponentialSmoothing(
+                series, trend='add', seasonal='add',
+                seasonal_periods=sp, initialization_method='estimated'
+            )
+            seasonal = True
+        else:
+            model    = ExponentialSmoothing(
+                series, trend='add', initialization_method='estimated'
+            )
+            seasonal = False
+
+        fit      = model.fit(optimized=True)
+        forecast = fit.forecast(horizon)
+
+        residuals = series - fit.fittedvalues
+        sigma     = residuals.std()
+        ci_upper  = pd.Series(np.maximum((forecast + 1.96 * sigma).values, 0),
+                               index=forecast.index)
+        ci_lower  = pd.Series(np.maximum((forecast - 1.96 * sigma).values, 0),
+                               index=forecast.index)
+
+        return {
+            'method':   'Holt-Winters',
+            'seasonal': seasonal,
+            'fitted':   fit.fittedvalues,
+            'forecast': forecast,
+            'ci_upper': ci_upper,
+            'ci_lower': ci_lower,
+            'aic':      fit.aic,
+        }
+
+
+    def decompose_series(self, series: pd.Series):
+        sp = self.seasonal_period
+        if len(series) < 2 * sp:
+            return None
+        try:
+            return seasonal_decompose(series, model='additive', period=sp)
+        except Exception:
+            return None
+
+    def evaluate(self, actual: pd.Series, fitted: pd.Series) -> dict:
+        mask   = ~fitted.isna()
+        y_true = actual[mask]
+        y_pred = fitted[mask]
+        mae    = mean_absolute_error(y_true, y_pred)
+        rmse   = np.sqrt(mean_squared_error(y_true, y_pred))
+        mape   = np.mean(np.abs((y_true - y_pred) / (y_true + 1e-9))) * 100
+        return {'MAE': round(mae, 2), 'RMSE': round(rmse, 2), 'MAPE%': round(mape, 2)}
+
+
+    def restocking_recommendation(self, forecast: pd.Series,
+                                   current_stock: int,
+                                   lead_time_days: int = 7,
+                                   safety_factor: float = 1.2) -> dict:
+        total_forecasted  = forecast.sum()
+        demand_lead       = forecast.iloc[:lead_time_days].sum()
+        recommended_order = max(0, (total_forecasted * safety_factor) - current_stock)
+        daily_avg         = forecast.mean()
+        days_of_stock     = current_stock / (daily_avg + 1e-9)
+        reorder_needed    = days_of_stock < lead_time_days
+
+        return {
+            'current_stock':           current_stock,
+            'forecasted_demand_total': round(total_forecasted,  0),
+            'demand_during_lead_time': round(demand_lead,       0),
+            'recommended_order_qty':   round(recommended_order, 0),
+            'days_of_stock_remaining': round(days_of_stock,     1),
+            'reorder_alert':           reorder_needed,
+        }
