@@ -54,3 +54,103 @@ def filter_data(df: pd.DataFrame) -> pd.DataFrame:
 
     print(f"Filtered data → shape: {df_filtered.shape}")
     return df_filtered
+
+def run_forecast(df: pd.DataFrame) -> Tuple[Dict, Dict]:
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    forecaster = DemandForecaster(seasonal_period=SEASONAL_PERIOD)
+
+    all_results     = {}
+    recommendations = {}
+
+    available_items = df['item_id'].unique()
+
+    for item_id in SELECTED_ITEMS:
+
+        if item_id not in available_items:
+            print(f"⚠ {item_id} not found in dataset. Skipping.")
+            continue
+
+        print(f"\n{'─'*60}")
+        print(f"Forecasting: {item_id}")
+
+        series = forecaster.prepare_data(df, item_id)
+
+        if len(series) < 14:
+            print(f"⚠ Skipping {item_id}: insufficient data ({len(series)} days).")
+            continue
+
+        try:
+            ma_result  = forecaster.moving_average_forecast(series, window=7, horizon=HORIZON)
+            ses_result = forecaster.exponential_smoothing_forecast(series, horizon=HORIZON)
+            hw_result  = forecaster.holt_winters_forecast(series, horizon=HORIZON)
+            decomp     = forecaster.decompose_series(series)
+
+            ses_metrics = forecaster.evaluate(series, ses_result['fitted'])
+            hw_metrics  = forecaster.evaluate(series, hw_result['fitted'])
+
+            print(f"SES  → α={ses_result['alpha']}  {ses_metrics}")
+            print(f"HW   → seasonal={hw_result['seasonal']}  {hw_metrics}")
+
+            rec = forecaster.restocking_recommendation(
+                hw_result['forecast'],
+                CURRENT_STOCK,
+                lead_time_days=LEAD_TIME,
+                safety_factor=SAFETY_FACTOR
+            )
+
+            recommendations[item_id] = rec
+
+            flag = "🔴 REORDER NOW" if rec['reorder_alert'] else "🟢 OK"
+
+            print(
+                f"Stock: {CURRENT_STOCK} | "
+                f"Days left: {rec['days_of_stock_remaining']} | "
+                f"Order: {rec['recommended_order_qty']} units  {flag}"
+            )
+
+            plot_item_dashboard(
+                series,
+                ma_result,
+                ses_result,
+                hw_result,
+                decomp,
+                item_id=item_id,
+                save_dir=OUTPUT_DIR
+            )
+
+            all_results[item_id] = {
+                'series': series,
+                'ma': ma_result,
+                'ses': ses_result,
+                'hw': hw_result,
+                'ses_metrics': ses_metrics,
+                'hw_metrics': hw_metrics,
+            }
+
+        except Exception as e:
+            print(f"Error forecasting {item_id}: {e}")
+            continue
+
+    return all_results, recommendations
+
+def save_summary(recommendations: Dict):
+    if not recommendations:
+        print("⚠ No recommendations generated.")
+        return
+
+    print(f"\n{'═'*60}")
+    print("RESTOCKING RECOMMENDATIONS")
+    print(f"{'═'*60}")
+
+    rec_df = pd.DataFrame(recommendations).T
+    print(rec_df.to_string())
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    out_path = os.path.join(OUTPUT_DIR, "restocking_recommendations.csv")
+    rec_df.to_csv(out_path)
+
+    print(f"\nSaved: {out_path}")
+
+    plot_restocking_summary(recommendations, save_dir=OUTPUT_DIR)
+    print(f"Saved: {OUTPUT_DIR}/restocking_summary.png")
