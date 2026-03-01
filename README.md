@@ -197,7 +197,7 @@ This section documents the full request-to-response flow, the major components, 
 - Data: SQLite (development) via SQLAlchemy models. Time-series stored as daily `SalesRecord` rows linked to `Item`.
 - Models: Pandas/NumPy for data manipulation, `statsmodels` for SES/Holt-Winters forecasting.
 
-### End-to-end Upload Flow (summary)
+### End-to-end Upload Flow 
 
 1. User navigates to the Upload page and drags/drops a CSV.
 2. Frontend performs a client-side basic validation (file type/size) and posts multipart/form-data to `POST /api/items/upload` with the JWT bearer token.
@@ -208,7 +208,7 @@ This section documents the full request-to-response flow, the major components, 
 7. Backend returns a cleaning report JSON with original/final shapes and step messages.
 8. Frontend displays the cleaning report and processed results; items are available in the Items page and forecasts can be run.
 
-### End-to-end Forecast Flow (summary)
+### End-to-end Forecast Flow 
 
 1. User requests a forecast (Forecast page): enters `item_id`, chooses `method`, `horizon`, optionally `current_stock` and `lead_time`.
 2. Frontend calls `GET /api/forecast/:sku` with query params and JWT bearer token.
@@ -333,20 +333,3 @@ sequenceDiagram
 - Cleaned DataFrame → rows persisted as `SalesRecord` (date, sales, price, promo,...)
 - Resampled Series (daily) → model inputs
 - Model outputs → arrays of (date, value) for charting and CSV export
-
-### Why these choices (concise rationale)
-
-- Normalize headers early: make ingest tolerant to variations and avoid later KeyErrors.
-- Fill missing days: forecasting algorithms assume regular time index.
-- Cap outliers: prevents a single extreme day from dominating parameter estimates.
-- Provide multiple models: allow comparisons and fallback when seasonality is weak.
-- Convert numpy types before JSON: avoids runtime TypeError when using `jsonify`.
-
-### How to read and extend the diagrams
-
-- Class diagram shows primary data objects (`Item`, `SalesRecord`) and services; add new domain fields to `models.py` and mirror them in cleaning/upsert logic in `routes/items.py`.
-- Sequence diagrams show the idealised request/response paths—use them while writing new endpoints or when adding middleware (auth, rate limits, observability hooks).
-- Component diagram indicates where to scale (move DB off SQLite, run a WSGI server, containerise the app).
-
----
-
