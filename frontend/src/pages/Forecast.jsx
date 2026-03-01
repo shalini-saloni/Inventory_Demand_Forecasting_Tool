@@ -1,254 +1,258 @@
-import React, { useState, useEffect } from 'react';
-import api from '../api/axios';
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Download, RefreshCw } from 'lucide-react'
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer, ReferenceLine,
-    Area, ComposedChart, Legend
-} from 'recharts';
-import { RefreshCcw, AlertCircle, Calendar, Activity, TrendingUp, ChevronDown } from 'lucide-react';
+  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, ReferenceLine
+} from 'recharts'
+import api from '../services/api'
 
-const PISTA = '#7ec062';
-const BEIGE = '#b8894a';
-const DARK  = '#2d3a2e';
-const MUTED = '#9db89e';
+const METHODS  = [
+  { value: 'holt_winters',   label: 'Holt-Winters (Default)' },
+  { value: 'ses',            label: 'Exponential Smoothing' },
+  { value: 'moving_average', label: 'Moving Average' },
+]
+const SEASONS  = [{ value: 7, label: '7 (Weekly)' }, { value: 30, label: '30 (Monthly)' }, { value: 365, label: '365 (Yearly)' }]
+const HORIZONS = [{ value: 14, label: '14 Days' }, { value: 30, label: '30 Days' }, { value: 60, label: '60 Days' }]
 
-const MetricChip = ({ label, value, icon: Icon, iconColor }) => (
-    <div className="glass-card p-5">
-        <div className="flex items-center gap-2 mb-2">
-            <Icon size={16} style={{ color: iconColor || PISTA }} />
-            <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: MUTED }}>{label}</span>
-        </div>
-        <p className="text-xl font-bold" style={{ color: DARK }}>{value}</p>
-    </div>
-);
+const COLORS = { historical: '#2A2318', ma: '#3B82F6', ses: '#F59E0B', hw: '#7CB87A' }
+const METHOD_COLOR = { holt_winters: COLORS.hw, ses: COLORS.ses, moving_average: COLORS.ma }
+
+// Merge historical tail + forecast for the comparison chart
+function buildCompareData(hist, forecasts) {
+  const tail  = hist.slice(-60)
+  const start = forecasts.holt_winters?.[0]?.date
+  const tailFiltered = tail.filter(d => !start || d.date < start)
+  const histPoints = tailFiltered.map(d => ({ date: d.date, historical: d.value }))
+  const fLen = Math.max(
+    forecasts.holt_winters?.length || 0,
+    forecasts.ses?.length || 0,
+    forecasts.moving_average?.length || 0
+  )
+  const fPoints = Array.from({ length: fLen }, (_, i) => {
+    const date = forecasts.holt_winters?.[i]?.date || forecasts.ses?.[i]?.date || ''
+    return {
+      date,
+      hw:  forecasts.holt_winters?.[i]?.value,
+      ses: forecasts.ses?.[i]?.value,
+      ma:  forecasts.moving_average?.[i]?.value,
+    }
+  })
+  return [...histPoints, ...fPoints]
+}
+
+// Build single-method chart data
+function buildChartData(historical, forecast, ciUpper, ciLower) {
+  const tail = historical.slice(-90)
+  const fStart = forecast[0]?.date
+  const histPts = tail.filter(d => !fStart || d.date < fStart)
+    .map(d => ({ date: d.date, actual: d.value }))
+  const fPts = forecast.map((d, i) => ({
+    date:    d.date,
+    forecast: d.value,
+    ci:      [ciLower[i]?.value ?? d.value, ciUpper[i]?.value ?? d.value],
+  }))
+  return [...histPts, ...fPts]
+}
 
 const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    const fmt = (v) => v != null ? Math.round(v) : '—';
-    return (
-        <div style={{ background: 'rgba(45,58,46,0.96)', borderRadius: 10, padding: '10px 14px', minWidth: 170, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
-            <p style={{ fontSize: 11, color: MUTED, marginBottom: 8, fontWeight: 600 }}>
-                {new Date(label).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-            </p>
-            {payload.map(p => p.value != null && (
-                <p key={p.dataKey} style={{ fontSize: 13, color: p.color || '#fff', margin: '3px 0' }}>
-                    {p.name}: <strong>{fmt(p.value)}</strong>
-                </p>
-            ))}
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: 'var(--white)', border: '1px solid var(--beige-border)', borderRadius: 8, padding: '10px 14px', fontSize: 12 }}>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>{label}</div>
+      {payload.map(p => (
+        <div key={p.name} style={{ color: p.color || p.stroke, marginBottom: 2 }}>
+          {p.name}: <strong>{typeof p.value === 'number' ? p.value.toFixed(1) : p.value}</strong>
         </div>
-    );
-};
+      ))}
+    </div>
+  )
+}
 
-const Forecast = () => {
-    const [skus,         setSkus]         = useState([]);
-    const [selectedSku,  setSelectedSku]  = useState('');
-    const [chartData,    setChartData]    = useState([]);
-    const [summaryRow,   setSummaryRow]   = useState(null);
-    const [loading,      setLoading]      = useState(false);
-    const [skuLoading,   setSkuLoading]   = useState(true);
-    const [error,        setError]        = useState('');
+export default function ForecastPage() {
+  const [searchParams] = useSearchParams()
+  const [sku,      setSku]     = useState(searchParams.get('sku') || '')
+  const [method,   setMethod]  = useState('holt_winters')
+  const [horizon,  setHorizon] = useState(30)
+  const [period,   setPeriod]  = useState(7)
+  const [data,     setData]    = useState(null)
+  const [loading,  setLoading] = useState(false)
+  const [error,    setError]   = useState('')
 
-    // Load distinct SKUs from the flat skus collection
-    useEffect(() => {
-        api.get('/api/skus')
-            .then(res => {
-                const list = Array.isArray(res.data) ? res.data : [];
-                setSkus(list);
-                if (list.length > 0) setSelectedSku(list[0].sku_id);
-            })
-            .catch(err => console.error('Failed to fetch SKUs', err))
-            .finally(() => setSkuLoading(false));
-    }, []);
+  const run = async () => {
+    if (!sku.trim()) return setError('Enter an item ID.')
+    setLoading(true); setError(''); setData(null)
+    try {
+      const { data: d } = await api.get(
+        `/forecast/${sku.trim()}?method=${method}&horizon=${horizon}&seasonal_period=${period}&store_id=store_1`
+      )
+      setData(d)
+    } catch (e) {
+      setError(e.response?.data?.error || 'Forecast failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-    useEffect(() => {
-        if (selectedSku) fetchForecast(selectedSku);
-    }, [selectedSku]);
+  // Auto-run if sku from query param
+  useEffect(() => { if (sku) run() }, [])
 
-    const fetchForecast = async (skuId) => {
-        setLoading(true); setError('');
-        try {
-            const res = await api.get(`/api/skus?sku_id=${encodeURIComponent(skuId)}`);
-            const rows = Array.isArray(res.data) ? res.data : [];
+  const handleExport = async () => {
+    const url = `/api/forecast/${sku}/export?seasonal_period=${period}&horizon=${horizon}&store_id=store_1`
+    window.open(url, '_blank')
+  }
 
-            const summary = rows.find(r => r.type === 'forecast_summary') || null;
-            setSummaryRow(summary);
+  const primaryColor = METHOD_COLOR[method] || COLORS.hw
+  const chartData    = data ? buildChartData(data.historical, data.forecast, data.ci_upper, data.ci_lower) : []
+  const compareData  = data ? buildCompareData(data.historical, data.all_forecasts) : []
+  const forecastStart = data?.forecast?.[0]?.date
 
-            // Build chart data from historical + forecast rows only
-            const chart = rows
-                .filter(r => r.type === 'historical' || r.type === 'forecast')
-                .map(r => ({
-                    date:        r.date,
-                    historical:  r.type === 'historical' ? (r.units_sold ?? null) : null,
-                    forecast:    r.type === 'forecast'   ? (r.expected   ?? null) : null,
-                    lower:       r.type === 'forecast'   ? (r.lower_bound ?? null) : null,
-                    upper:       r.type === 'forecast'   ? (r.upper_bound ?? null) : null,
-                }))
-                .sort((a, b) => new Date(a.date) - new Date(b.date));
+  return (
+    <div className="fade-up">
+      <div className="page-header">
+        <h1>Demand Forecast</h1>
+        <p>Predict future demand per SKU with time-series models.</p>
+      </div>
 
-            setChartData(chart);
-        } catch (err) {
-            if (err.response?.status === 404) {
-                setError(`No data found for "${skuId}". Make sure it was included in your CSV upload.`);
-                setChartData([]); setSummaryRow(null);
-            } else {
-                setError('Failed to fetch forecast data.');
+      {/* Controls */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-body">
+          <div className="forecast-controls">
+            <div className="form-group" style={{ minWidth: 180 }}>
+              <label className="form-label">Item ID (SKU)</label>
+              <input className="form-input" placeholder="e.g. item_1" value={sku}
+                onChange={e => setSku(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && run()} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Model</label>
+              <select className="form-select" value={method} onChange={e => setMethod(e.target.value)}>
+                {METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Horizon</label>
+              <select className="form-select" value={horizon} onChange={e => setHorizon(+e.target.value)}>
+                {HORIZONS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Seasonal Period</label>
+              <select className="form-select" value={period} onChange={e => setPeriod(+e.target.value)}>
+                {SEASONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <button className="btn btn-primary" onClick={run} disabled={loading}>
+              <RefreshCw size={15} className={loading ? 'spin' : ''} />
+              {loading ? 'Running…' : 'Run Forecast'}
+            </button>
+            {data && (
+              <button className="btn btn-ghost" onClick={handleExport}>
+                <Download size={15} /> Export CSV
+              </button>
+            )}
+          </div>
+          {error && <div className="alert alert-error">{error}</div>}
+        </div>
+      </div>
+
+      {loading && <div className="loader-wrap"><div className="spinner" /><span>Running models…</span></div>}
+
+      {data && (
+        <>
+          {/* Metrics */}
+          <div className="metrics-row">
+            {data.metrics?.hw && <>
+              <div className="metric-chip">MAE  <span>{data.metrics.hw.MAE}</span></div>
+              <div className="metric-chip">RMSE <span>{data.metrics.hw.RMSE}</span></div>
+              <div className="metric-chip">MAPE <span>{data.metrics.hw['MAPE%']}%</span></div>
+            </>}
+            {data.alpha && <div className="metric-chip">SES α <span>{data.alpha}</span></div>}
+            <div className="metric-chip">Train <span>{data.train_size}d</span></div>
+            <div className="metric-chip">Test  <span>{data.test_size}d</span></div>
+            {data.restock?.reorder_alert
+              ? <span className="badge badge-red">🔴 Reorder Alert!</span>
+              : <span className="badge badge-green">🟢 Stock OK</span>
             }
-        } finally {
-            setLoading(false);
-        }
-    };
+          </div>
 
-    const historicalCount = chartData.filter(d => d.historical != null).length;
-    const forecastCount   = chartData.filter(d => d.forecast   != null).length;
-    const splitDate       = chartData.find(d => d.forecast != null)?.date ?? null;
-
-    return (
-        <div className="space-y-5 animate-fade-in">
-            {/* Header + SKU Selector */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold mb-1" style={{ color: DARK }}>Demand Forecasting</h1>
-                    <p className="text-sm" style={{ color: MUTED }}>Visualize historical sales vs ML predictions with confidence intervals.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium whitespace-nowrap" style={{ color: '#4a6a4b' }}>Item:</label>
-                    <div className="relative">
-                        <select
-                            value={selectedSku}
-                            onChange={e => setSelectedSku(e.target.value)}
-                            disabled={skuLoading}
-                            style={{
-                                appearance: 'none', padding: '0.55rem 2.5rem 0.55rem 0.875rem',
-                                border: '1.5px solid rgba(168,214,143,0.5)', borderRadius: 10,
-                                background: 'rgba(253,250,245,0.95)', color: DARK,
-                                fontSize: 14, fontWeight: 600, minWidth: 160, outline: 'none',
-                            }}
-                        >
-                            {skuLoading
-                                ? <option>Loading…</option>
-                                : skus.length === 0
-                                    ? <option>No SKUs found — upload CSV first</option>
-                                    : skus.map(s => <option key={s.sku_id} value={s.sku_id}>{s.sku_id}</option>)
-                            }
-                        </select>
-                        <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: MUTED, pointerEvents: 'none' }} />
-                    </div>
-                </div>
+          {/* Restock Info */}
+          <div className="card fade-up" style={{ marginBottom: 24 }}>
+            <div className="card-header">
+              <h2>Restock Recommendation</h2>
             </div>
-
-            {/* Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <MetricChip label="Total Predicted Demand" value={summaryRow ? summaryRow.total_predicted_demand?.toLocaleString() ?? 'N/A' : '—'} icon={TrendingUp} />
-                <MetricChip label="Historical Days"  value={historicalCount ? `${historicalCount} days` : '—'} icon={Calendar}  iconColor={BEIGE} />
-                <MetricChip label="Forecast Days"    value={forecastCount   ? `${forecastCount} days`   : '—'} icon={Activity}  iconColor="#6ab0d4" />
+            <div className="card-body">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                {[
+                  ['Current Stock',       data.restock.current_stock + ' units'],
+                  ['Forecast Demand',     data.restock.forecasted_demand_total + ' units'],
+                  ['Lead-Time Demand',    data.restock.demand_during_lead_time + ' units'],
+                  ['Recommended Order',   data.restock.recommended_order_qty + ' units'],
+                  ['Days of Stock Left',  data.restock.days_of_stock_remaining + ' days'],
+                ].map(([label, val]) => (
+                  <div key={label} style={{ flex: '1 1 150px', background: 'var(--beige)', borderRadius: 'var(--radius)', padding: '14px 18px' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--ink-light)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', color: 'var(--ink)', marginTop: 4 }}>{val}</div>
+                  </div>
+                ))}
+              </div>
             </div>
+          </div>
 
-            {/* Error state */}
-            {error && (
-                <div className="glass-card p-6 flex items-start gap-3 text-sm"
-                    style={{ borderColor: 'rgba(252,165,165,0.4)', background: 'rgba(254,202,202,0.2)' }}>
-                    <AlertCircle size={18} style={{ color: '#dc2626', flexShrink: 0, marginTop: 1 }} />
-                    <p style={{ color: '#991b1b' }}>{error}</p>
-                </div>
-            )}
+          {/* Primary Forecast Chart */}
+          <div className="card fade-up" style={{ marginBottom: 24 }}>
+            <div className="card-header">
+              <h2>Forecast — {METHODS.find(m => m.value === method)?.label}</h2>
+            </div>
+            <div className="card-body" style={{ paddingTop: 8 }}>
+              <ResponsiveContainer width="100%" height={320}>
+                <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--beige-border)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--ink-light)' }}
+                    tickFormatter={d => d?.slice(5)} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11, fill: 'var(--ink-light)' }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  {forecastStart && (
+                    <ReferenceLine x={forecastStart} stroke="var(--red)" strokeDasharray="4 3"
+                      label={{ value: 'Forecast Start', position: 'insideTopLeft', fontSize: 11, fill: 'var(--red)' }} />
+                  )}
+                  {/* CI band */}
+                  <Area dataKey="ci" stroke="none" fill={primaryColor} fillOpacity={0.12}
+                    name="95% CI" legendType="none" />
+                  <Line dataKey="actual" stroke="var(--ink)" strokeWidth={1.5} dot={false} name="Historical" />
+                  <Line dataKey="forecast" stroke={primaryColor} strokeWidth={2.5} strokeDasharray="6 3"
+                    dot={false} name="Forecast" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
-            {/* Chart */}
-            {!error && (
-                <div className="glass-card p-6">
-                    <div className="flex items-center justify-between mb-5">
-                        <div>
-                            <h3 className="text-base font-bold" style={{ color: DARK }}>Demand Curve & Confidence Intervals</h3>
-                            <p className="text-xs" style={{ color: MUTED }}>Dashed line = ML forecast · Shaded band = 95% confidence interval</p>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs" style={{ color: MUTED }}>
-                            <span className="flex items-center gap-1.5"><span style={{ width: 20, height: 2.5, background: '#9db89e', display: 'inline-block', borderRadius: 2 }}></span>Historical</span>
-                            <span className="flex items-center gap-1.5"><span style={{ width: 20, height: 2.5, background: PISTA, display: 'inline-block', borderRadius: 2, borderTop: `2px dashed ${PISTA}` }}></span>Forecast</span>
-                            <span className="flex items-center gap-1.5"><span style={{ width: 14, height: 10, background: 'rgba(126,192,98,0.2)', display: 'inline-block', borderRadius: 2 }}></span>95% CI</span>
-                        </div>
-                    </div>
-
-                    {loading ? (
-                        <div className="flex items-center justify-center h-72">
-                            <div className="w-8 h-8 border-2 rounded-xl animate-spin"
-                                style={{ borderColor: 'rgba(168,214,143,0.2)', borderTopColor: PISTA }}></div>
-                        </div>
-                    ) : chartData.length === 0 ? (
-                        <div className="flex items-center justify-center h-72 text-sm" style={{ color: MUTED }}>
-                            No chart data available for this SKU.
-                        </div>
-                    ) : (
-                        <div style={{ height: 380 }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 20 }}>
-                                    <defs>
-                                        <linearGradient id="ciGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%"   stopColor={PISTA} stopOpacity={0.2} />
-                                            <stop offset="100%" stopColor={PISTA} stopOpacity={0.04} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(168,214,143,0.2)" />
-                                    <XAxis
-                                        dataKey="date"
-                                        axisLine={false} tickLine={false}
-                                        tick={{ fill: MUTED, fontSize: 11 }} dy={8}
-                                        minTickGap={28}
-                                        tickFormatter={v => new Date(v).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                    />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: MUTED, fontSize: 11 }} dx={-4} />
-                                    <Tooltip content={<CustomTooltip />} />
-
-                                    {/* 95% CI shaded band */}
-                                    <Area type="monotone" dataKey="upper" stroke="none" fill="url(#ciGrad)"
-                                        name="Upper CI" legendType="none" activeDot={false} />
-                                    <Area type="monotone" dataKey="lower" stroke="none"
-                                        fill="rgba(253,250,245,0.9)" name="Lower CI" legendType="none" activeDot={false} />
-
-                                    {/* Historical line */}
-                                    <Line type="monotone" dataKey="historical" stroke="#9db89e" strokeWidth={2.5}
-                                        dot={{ r: 2.5, fill: '#9db89e', strokeWidth: 0 }}
-                                        activeDot={{ r: 6, fill: '#7a9a7b', strokeWidth: 0 }}
-                                        connectNulls={false} name="Historical" />
-
-                                    {/* Forecast line */}
-                                    <Line type="monotone" dataKey="forecast" stroke={PISTA} strokeWidth={2.5}
-                                        strokeDasharray="6 4"
-                                        dot={{ r: 2.5, fill: PISTA, strokeWidth: 0 }}
-                                        activeDot={{ r: 6, fill: '#5ba63e', strokeWidth: 0 }}
-                                        connectNulls={false} name="Forecast" />
-
-                                    {/* Split reference line */}
-                                    {splitDate && (
-                                        <ReferenceLine x={splitDate} stroke="rgba(168,214,143,0.6)"
-                                            strokeDasharray="4 3"
-                                            label={{ value: 'Forecast Start', position: 'top', fill: MUTED, fontSize: 11 }} />
-                                    )}
-                                </ComposedChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Summary details card */}
-            {summaryRow && (
-                <div className="glass-card p-5">
-                    <h3 className="text-sm font-bold mb-4" style={{ color: DARK }}>Forecast Summary — {selectedSku}</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                        {[
-                            ['Total Predicted Demand', summaryRow.total_predicted_demand?.toLocaleString() ?? '—'],
-                            ['Safety Stock',           summaryRow.safety_stock  ?? '—'],
-                            ['Reorder Point',          summaryRow.reorder_point ?? '—'],
-                        ].map(([label, value]) => (
-                            <div key={label} className="p-3 rounded-xl" style={{ background: 'rgba(168,214,143,0.08)', border: '1px solid rgba(168,214,143,0.2)' }}>
-                                <p className="text-xs mb-1" style={{ color: MUTED }}>{label}</p>
-                                <p className="text-lg font-bold" style={{ color: DARK }}>{value}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-export default Forecast;
+          {/* Model Comparison Chart */}
+          <div className="card fade-up" style={{ marginBottom: 24 }}>
+            <div className="card-header"><h2>All Models Comparison</h2></div>
+            <div className="card-body" style={{ paddingTop: 8 }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={compareData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--beige-border)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--ink-light)' }}
+                    tickFormatter={d => d?.slice(5)} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11, fill: 'var(--ink-light)' }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  {forecastStart && (
+                    <ReferenceLine x={forecastStart} stroke="var(--red)" strokeDasharray="4 3" />
+                  )}
+                  <Line dataKey="historical" stroke="var(--ink)" strokeWidth={1.5} dot={false} name="Historical" />
+                  <Line dataKey="hw"  stroke={COLORS.hw}  strokeWidth={2} strokeDasharray="6 3" dot={false} name="Holt-Winters" />
+                  <Line dataKey="ses" stroke={COLORS.ses} strokeWidth={2} strokeDasharray="4 2" dot={false} name="SES" />
+                  <Line dataKey="ma"  stroke={COLORS.ma}  strokeWidth={2} strokeDasharray="2 2" dot={false} name="Moving Avg" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
