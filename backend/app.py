@@ -13,15 +13,7 @@ def create_app(env: str = "development") -> Flask:
 
     # Extensions
     db.init_app(app)
-    CORS(
-    app,
-    origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://inventory-demand-forecasting-tool-1.onrender.com"
-    ],
-    supports_credentials=True
-)
+    CORS(app, supports_credentials=True)
     jwt = JWTManager(app)
 
     # ── JWT error handlers ────────────────────────────────────────────────
