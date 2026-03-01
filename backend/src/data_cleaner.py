@@ -105,7 +105,7 @@ def _fill_missing_dates(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
 
 def print_cleaning_report(report: dict):
     print(f"\n{'─'*55}")
-    print("  🧹  DATA CLEANING REPORT")
+    print("DATA CLEANING REPORT")
     print(f"{'─'*55}")
     print(f"  Original shape : {report['original_shape']}")
     print(f"  Final shape    : {report['final_shape']}")

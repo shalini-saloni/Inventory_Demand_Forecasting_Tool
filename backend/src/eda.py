@@ -114,7 +114,7 @@ def _plot_distribution(df, items, out):
 
 
 def _print_stats(df, items):
-    print("\n  📊  Descriptive Statistics per Item:")
+    print("\nDescriptive Statistics per Item:")
     print("  " + "─" * 60)
     stats = df.groupby('item_id')['sales'].agg(
         days='count', total='sum',
