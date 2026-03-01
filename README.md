@@ -2,7 +2,8 @@
 
 A full-stack SaaS-style application for SKU-level demand forecasting, seasonality analysis, and intelligent restocking recommendations.
 
-**Tech Stack:** Flask · SQLite · Pandas · Statsmodels · React (Vite) · Recharts · JWT
+Deployed Link - https://inventory-demand-forecasting-tool-1.onrender.com
+Drive Link - https://drive.google.com/drive/folders/1G3Eas_5vCFOeTlRMrlTjFtt8DJTqj7EL?usp=sharing
 
 ---
 
@@ -199,7 +200,7 @@ This section documents the full request-to-response flow, the major components, 
 
 ### End-to-end Upload Flow 
 
-1. User navigates to the Upload page and drags/drops a CSV.
+1. User navigates to the Upload page and drags/drops a CSV (Provided in Drive Link)
 2. Frontend performs a client-side basic validation (file type/size) and posts multipart/form-data to `POST /api/items/upload` with the JWT bearer token.
 3. Backend `routes/items.py` receives the file and reads it using BOM-safe encoding (`utf-8-sig`).
 4. CSV header normalisation is performed (`lower()`, `strip()`, spaces → underscores) to accept a wide range of user files.
