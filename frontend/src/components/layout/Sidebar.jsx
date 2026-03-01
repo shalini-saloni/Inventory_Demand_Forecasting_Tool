@@ -7,11 +7,11 @@ import { useAuth } from '../../context/AuthContext'
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/upload',    icon: Upload,          label: 'Upload Data' },
-  { to: '/items',     icon: Package,         label: 'Items' },
-  { to: '/forecast',  icon: TrendingUp,      label: 'Forecast' },
-  { to: '/decompose', icon: BarChart3,        label: 'Decomposition' },
-  { to: '/restock',   icon: ShoppingCart,    label: 'Restock' },
+  { to: '/upload', icon: Upload, label: 'Upload Data' },
+  { to: '/items', icon: Package, label: 'Items' },
+  { to: '/forecast', icon: TrendingUp, label: 'Forecast' },
+  { to: '/decompose', icon: BarChart3, label: 'Decomposition' },
+  { to: '/restock', icon: ShoppingCart, label: 'Restock' },
 ]
 
 export default function Sidebar() {
@@ -43,7 +43,7 @@ export default function Sidebar() {
           </div>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', lineHeight: 1.1, color: 'var(--ink)' }}>
-              InventIQ
+              Invenza
             </div>
             <div style={{ fontSize: '0.7rem', color: 'var(--ink-light)', letterSpacing: '0.05em' }}>
               DEMAND FORECASTING

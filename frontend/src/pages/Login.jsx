@@ -5,9 +5,9 @@ import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const { login } = useAuth()
-  const navigate  = useNavigate()
-  const [form, setForm]     = useState({ email: '', password: '' })
-  const [error, setError]   = useState('')
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ email: '', password: '' })
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -31,7 +31,7 @@ export default function Login() {
       <div className="auth-card fade-up">
         <div className="auth-logo">
           <div className="auth-logo-mark"><Leaf size={20} /></div>
-          <h1>InventIQ</h1>
+          <h1>Invenza</h1>
         </div>
         <h2>Welcome back</h2>
         <p>Sign in to your forecasting dashboard.</p>
