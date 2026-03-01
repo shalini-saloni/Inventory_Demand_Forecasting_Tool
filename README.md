@@ -1,311 +1,362 @@
-# Inventory_Demand_Forecasting_Tool
-Deployed Link - https://inventory-demand-forecasting-tool-1.onrender.com
+# Invenza — Inventory Demand Forecasting Tool
 
-#  Invenza  
-## Risk-Aware Inventory Intelligence Engine
+A full-stack SaaS-style application for SKU-level demand forecasting, seasonality analysis, and intelligent restocking recommendations.
 
-An interpretable SKU-level demand forecasting and inventory optimization system for SMB retailers using structured time-series modeling and uncertainty quantification.
+**Tech Stack:** Flask · SQLite · Pandas · Statsmodels · React (Vite) · Recharts · JWT
 
 ---
 
-#  1. Problem Statement
+## Project Structure
 
-## Problem Title  
-Inventory Demand Forecasting for SMB Retailers
-
-## Problem Description  
-Small and medium businesses struggle with accurate demand forecasting, leading to overstocking, stockouts, and inefficient inventory planning. Most rely on spreadsheets that fail to capture seasonality, trends, and demand variability.
-
-## Target Users  
-- SMB Retailers  
-- Inventory Managers  
-- E-commerce Store Owners  
-
-## Existing Gaps  
-- No structured time-series modeling  
-- No SKU-level forecasting  
-=- No automated restocking logic  
-
----
-
-#  2. Problem Understanding & Approach
-
-## Root Cause Analysis
-- Demand fluctuates weekly and seasonally  
-- Manual forecasting ignores variability  
-- Inventory planning is reactive  
-- No probabilistic decision-making  
-
-## Solution Strategy
-- Detect weekly seasonality  
-- Apply Holt-Winters forecasting  
-- Compute 95% confidence intervals  
-- Convert forecasts into restocking recommendations  
-
----
-
-#  3. Proposed Solution
-
-## Solution Overview
-Invenza predicts SKU-level demand and generates safety-stock-aware restocking recommendations.
-
-## Core Idea
-Forecast demand + quantify uncertainty + optimize inventory decisions.
-
-## Key Features
-- SKU-level demand forecasting  
-- Weekly seasonality modeling  
-- 30-day prediction  
-- 95% confidence interval  
-- Safety stock calculation  
-- Reorder point recommendation  
-- Interactive dashboard  
+```
+inventory-app/
+├── backend/
+│   ├── app.py                  # Flask factory
+│   ├── config.py               # App + model config
+│   ├── models.py               # SQLAlchemy models (User, Item, SalesRecord)
+│   ├── requirements.txt
+│   ├── .env
+│   ├── routes/
+│   │   ├── auth.py             # POST /api/auth/login|signup
+│   │   ├── items.py            # CRUD + CSV upload
+│   │   ├── forecast.py         # GET /api/forecast/<sku>
+│   │   ├── restock.py          # GET /api/restock
+│   │   └── dashboard.py        # GET /api/dashboard
+│   └── src/
+│       ├── data_cleaner.py     # Cleaning pipeline (your original)
+│       ├── forecasting_engine.py # MA, SES, Holt-Winters (your original)
+│       ├── forecast_service.py  # Service layer (bridge)
+│       ├── eda.py              # EDA utilities
+│       └── visualizer.py       # Plot helpers
+│
+└── frontend/
+    ├── index.html
+    ├── vite.config.js
+    ├── package.json
+    └── src/
+        ├── App.jsx
+        ├── main.jsx
+        ├── index.css            # Design system (pista green + beige)
+        ├── context/
+        │   └── AuthContext.jsx  # JWT auth state
+        ├── services/
+        │   └── api.js           # Axios + JWT interceptors
+        ├── components/
+        │   ├── ProtectedRoute.jsx
+        │   └── layout/
+        │       └── Sidebar.jsx
+        └── pages/
+            ├── Login.jsx
+            ├── Signup.jsx
+            ├── Dashboard.jsx    # Stats + trend chart
+            ├── Upload.jsx       # Drag-and-drop CSV
+            ├── Items.jsx        # CRUD + pagination
+            ├── Forecast.jsx     # All models + comparison
+            ├── Decompose.jsx    # Trend/Seasonal/Residual
+            └── Restock.jsx      # Recommendations + bar chart
+```
 
 ---
 
-#  4. System Architecture
+## Setup Instructions
 
-## High-Level Architecture
+### Prerequisites
+- Python 3.9+
+- Node.js 18+
+
+### 1. Backend
+
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate         # Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment (edit .env)
+cp .env .env.local
+
+# Run the Flask server
+python app.py
+# → http://localhost:5000
+```
+
+### 2. Frontend
+
+```bash
+cd frontend
+
+# Install packages
+npm install
+
+# Run Vite dev server
+npm run dev
+# → http://localhost:5173
+```
+
+### 3. Load Sample Data
+
+1. Open http://localhost:5173 → Sign up
+2. Go to **Upload** page
+3. Drag `retail_sales_2023_small.csv` onto the dropzone
+4. Click **Upload & Process**
+
+---
+
+## API Endpoints
+
+### Auth
+| Method | Endpoint          | Description        |
+|--------|-------------------|--------------------|
+| POST   | /api/auth/signup  | Register           |
+| POST   | /api/auth/login   | Login, get JWT     |
+
+### Items
+| Method | Endpoint              | Description        |
+|--------|-----------------------|--------------------|
+| POST   | /api/items/upload     | Upload CSV         |
+| GET    | /api/items            | List all items     |
+| GET    | /api/items/:id        | Item + history     |
+| PUT    | /api/items/:id        | Update stock/lead  |
+| DELETE | /api/items/:id        | Delete item        |
+
+### Forecast
+| Method | Endpoint                  | Description               |
+|--------|---------------------------|---------------------------|
+| GET    | /api/forecast/:sku        | Full forecast + metrics   |
+| GET    | /api/forecast/decompose/:sku | Decomposition          |
+| GET    | /api/forecast/:sku/export | Download forecast CSV     |
+
+**Query params:** `method`, `horizon`, `seasonal_period`, `store_id`, `current_stock`, `lead_time`
+
+### Dashboard & Restock
+| Method | Endpoint          | Description                |
+|--------|-------------------|----------------------------|
+| GET    | /api/dashboard    | Stats, trend chart, SKUs   |
+| GET    | /api/restock      | All SKU restock recs       |
+
+---
+
+## Forecasting Models
+
+| Model              | Description                                   |
+|--------------------|-----------------------------------------------|
+| Moving Average     | Rolling mean forecast, flat projection        |
+| Simple Exp. Smoothing | Weighted recent average, α auto-optimised |
+| Holt-Winters       | Trend + weekly seasonality (primary model)    |
+
+All models output: forecast, 95% CI, MAE, RMSE, MAPE
+
+---
+
+## Restocking Logic
+
+```
+Safety Stock  = 1.2 × Forecasted Demand (30 days)
+Reorder Point = Safety Stock − Current Stock
+Alert         = Days of Stock < Lead Time
+```
+
+---
+
+## Sample CSV Format
+
+```csv
+date,store_id,item_id,sales,price,promo,weekday,month
+2023-01-01,store_1,item_1,41,21.3,0,6,1
+2023-01-02,store_1,item_1,48,21.3,0,0,1
+2023-01-01,store_1,item_2,33,15.0,1,6,1
+```
+
+Required columns: `date`, `item_id`, `sales`
+Optional: `store_id`, `price`, `promo`, `weekday`, `month`
+
+---
+
+## Notes on Your Original Files
+
+The following files were **reused without modification**:
+- `src/data_cleaner.py` — full 8-step pipeline (standardise → type cast → nulls → dupes → negatives → IQR cap → fill dates → sort)
+- `src/forecasting_engine.py` — `DemandForecaster` class with all methods
+- `src/eda.py` — EDA chart generation
+- `src/visualizer.py` — Matplotlib dashboard plots
+
+---
+
+## Architecture, End-to-End Flow, and UML Diagrams
+
+This section documents the full request-to-response flow, the major components, the data model, and UML diagrams (class and sequence) so you — or other developers — can quickly understand, maintain, and extend the system.
+
+### High-level Architecture
+
+- Frontend: React (Vite) SPA running in browser. Handles user auth, CSV upload, visualisation, and interacting with forecast endpoints.
+- Backend: Flask app exposing a small REST API surface with JWT-based auth. Responsibilities: validation, cleaning, persistence, model orchestration, CSV export.
+- Data: SQLite (development) via SQLAlchemy models. Time-series stored as daily `SalesRecord` rows linked to `Item`.
+- Models: Pandas/NumPy for data manipulation, `statsmodels` for SES/Holt-Winters forecasting.
+
+### End-to-end Upload Flow (summary)
+
+1. User navigates to the Upload page and drags/drops a CSV.
+2. Frontend performs a client-side basic validation (file type/size) and posts multipart/form-data to `POST /api/items/upload` with the JWT bearer token.
+3. Backend `routes/items.py` receives the file and reads it using BOM-safe encoding (`utf-8-sig`).
+4. CSV header normalisation is performed (`lower()`, `strip()`, spaces → underscores) to accept a wide range of user files.
+5. The cleaning pipeline (`src/data_cleaner.py`) runs the 8-step process: standardise, cast, handle missing, combine duplicates, clip negatives, cap outliers, fill missing days, sort.
+6. The cleaned DataFrame is upserted into `Item` and `SalesRecord` tables. NaNs and numpy scalars are coerced to Python `None`/native types before DB insertion to avoid type errors.
+7. Backend returns a cleaning report JSON with original/final shapes and step messages.
+8. Frontend displays the cleaning report and processed results; items are available in the Items page and forecasts can be run.
+
+### End-to-end Forecast Flow (summary)
+
+1. User requests a forecast (Forecast page): enters `item_id`, chooses `method`, `horizon`, optionally `current_stock` and `lead_time`.
+2. Frontend calls `GET /api/forecast/:sku` with query params and JWT bearer token.
+3. Backend resolves the `Item`, fetches historical `SalesRecord` rows (ordered by date) and converts them into a daily `pd.Series` (resampled to fill missing dates with 0).
+4. `ForecastService` calls `DemandForecaster` to compute MA, SES, Holt-Winters forecasts and confidence intervals, plus evaluation metrics on test split.
+5. Forecast results are converted into JSON-friendly lists of `{date, value}`; numpy scalar types are converted to native Python types to ensure JSON serialization.
+6. Backend also computes simple restocking recommendations from the primary forecast and returns the combined JSON payload.
+7. Frontend visualises historical and forecast lines with 95% CI shaded area and shows restock suggestions.
+
+### Component Diagram (Mermaid)
 
 ```mermaid
 flowchart LR
-    User --> ReactFrontend
-    ReactFrontend --> NodeAPI
-    NodeAPI --> MongoDB
-    PythonMLPipeline --> MongoDB
+    A[Browser - React UI] -->|POST/GET| B[Flask REST API]
+    B --> C[ForecastService]
+    C --> D[DemandForecaster (statsmodels)]
+    B --> E[DataCleaner (pandas)]
+    B --> F[SQLite (SQLAlchemy)]
+    A -->|Websocket/HTTP| G[Charts/Visuals]
+    style A fill:#f3fff0,stroke:#2e7d32
+    style B fill:#eef7ff,stroke:#1565c0
+    style D fill:#fff7e6,stroke:#ff9800
+    style F fill:#f7f0ff,stroke:#7b1fa2
 ```
 
-## Architecture Description
-1. Python Data Pipeline loads CSV and calculates Holt-Winters forecast.
-2. Python Pipeline pushes historical and forecast data to MongoDB via NodeAPI.
-3. User selects SKU on the React Frontend.
-4. Frontend requests forecast from NodeAPI.
-5. NodeAPI retrieves data from MongoDB and serves it to the client.
-6. Dashboard visualizes results (Total Demand, Safety Stock, Reorder Point).
-
----
-
-#  5. Database Design
-
-## ER Diagram
-
-```mermaid
-flowchart TD
-
-STORE[STORE
-------
-store_id
-store_name]
-
-SKU[SKU
-------
-sku_id
-product_name
-store_id]
-
-SALES[SALES
-------
-sale_id
-sku_id
-sale_date
-units_sold]
-
-FORECAST[FORECAST
-------
-forecast_id
-sku_id
-forecast_date
-predicted_demand
-lower_bound
-upper_bound]
-
-STORE -->|1 to Many| SKU
-SKU -->|1 to Many| SALES
-SKU -->|1 to Many| FORECAST
-```
----
-
-#  6. UML Diagrams
-
-## Component Diagram
-
-```mermaid
-flowchart TD
-    ReactUI --> NodeAPI
-    NodeAPI --> MongoDB
-    PythonMLPipeline --> MongoDB
-```
-
----
-
-## Class Diagram
+### Class Diagram (Mermaid)
 
 ```mermaid
 classDiagram
+        class User {
+            +int id
+            +string username
+            +string email
+            +string password
+        }
 
-class SalesDataProcessor {
-  load_data()
-  filter_sku()
-  fill_missing_dates()
-}
+        class Item {
+            +int id
+            +string item_id
+            +string store_id
+            +int current_stock
+            +int lead_time
+        }
 
-class ForecastModel {
-  train_model()
-  generate_forecast()
-  calculate_residuals()
-}
+        class SalesRecord {
+            +int id
+            +int item_pk
+            +date date
+            +float sales
+            +float price
+            +int promo
+        }
 
-class ConfidenceInterval {
-  compute_std()
-  calculate_bounds()
-}
+        class DataCleaner {
+            +clean_dataframe(df)
+        }
 
-class InventoryOptimizer {
-  calculate_safety_stock()
-  calculate_reorder_point()
-}
+        class DemandForecaster {
+            +moving_average_forecast(series, window, horizon)
+            +exponential_smoothing_forecast(series, alpha, horizon)
+            +holt_winters_forecast(series, horizon)
+            +decompose_series(series)
+        }
 
-class APIController {
-  get_skus()
-  get_forecast()
-  get_inventory()
-}
+        class ForecastService {
+            +build_series(records)
+            +full_forecast(series, horizon, ...)
+        }
 
-SalesDataProcessor --> ForecastModel
-ForecastModel --> ConfidenceInterval
-ForecastModel --> InventoryOptimizer
-APIController --> SalesDataProcessor
+        Item "1" <-- "*" SalesRecord : has
+        ForecastService --> DemandForecaster : uses
+        DataCleaner --> SalesRecord : outputs
 ```
 
-## Sequence Diagram
+### Sequence Diagram — Upload (Mermaid)
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Frontend
-    participant Backend
-    participant Model
-    participant Inventory
-    participant Database
+    participant U as User (Browser)
+    participant UI as React Upload Component
+    participant API as Flask `/api/items/upload`
+    participant Cleaner as `src.data_cleaner`
+    participant DB as SQLAlchemy/SQLite
 
-    User->>Frontend: Select SKU
-    Frontend->>Backend: Request forecast
-    Backend->>Database: Get sales data
-    Database-->>Backend: Return data
-    Backend->>Model: Generate forecast
-    Model-->>Backend: Forecast output
-    Backend->>Inventory: Calculate reorder point
-    Inventory-->>Backend: Inventory metrics
-    Backend-->>Frontend: Send results
-    Frontend-->>User: Display dashboard
+    U->>UI: Drag & drop CSV
+    UI->>API: POST /api/items/upload (multipart + JWT)
+    API->>Cleaner: read CSV, normalize headers
+    Cleaner-->>API: return cleaned DataFrame + report
+    API->>DB: upsert Items + SalesRecords
+    DB-->>API: commit
+    API-->>UI: 201 + cleaning_report
+    UI-->>U: show cleaning report
 ```
 
----
+### Sequence Diagram — Forecast (Mermaid)
 
-#  7. Dataset Selected
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as React Forecast Page
+    participant API as Flask `/api/forecast/:sku`
+    participant Service as ForecastService
+    participant Engine as DemandForecaster
+    participant DB as SQLite
 
-## Dataset Name  
-Store Item Demand Forecasting Dataset
+    U->>UI: Request forecast for SKU
+    UI->>API: GET /api/forecast/sku?horizon=30&method=holt_winters
+    API->>DB: fetch SalesRecord rows for SKU
+    DB-->>API: rows
+    API->>Service: build_series(rows)
+    Service->>Engine: run models (MA, SES, HW)
+    Engine-->>Service: forecasts + CIs
+    Service-->>API: JSON-ready results
+    API-->>UI: 200 + forecast JSON
+    UI-->>U: render charts + restock suggestion
+```
 
-## Source  
-Kaggle
+### Data Flow / Types
 
-## Data Type  
-Daily SKU-level retail demand data
+- Input CSV → DataFrame with columns (date, store_id, item_id, sales, ...)
+- Cleaned DataFrame → rows persisted as `SalesRecord` (date, sales, price, promo,...)
+- Resampled Series (daily) → model inputs
+- Model outputs → arrays of (date, value) for charting and CSV export
 
-## Selection Reason  
-- Clean structure  
-- Minimal null values  
-- Strong weekly seasonality  
-- Perfect for time-series modeling  
-- Aligns with SKU-level forecasting  
+### Why these choices (concise rationale)
 
-## Preprocessing Steps  
-- Selected 1 store  
-- Selected 6 representative SKUs  
-- Extracted 1 year of data  
-- Sorted by date  
-- Filled missing values  
+- Normalize headers early: make ingest tolerant to variations and avoid later KeyErrors.
+- Fill missing days: forecasting algorithms assume regular time index.
+- Cap outliers: prevents a single extreme day from dominating parameter estimates.
+- Provide multiple models: allow comparisons and fallback when seasonality is weak.
+- Convert numpy types before JSON: avoids runtime TypeError when using `jsonify`.
 
----
+### How to read and extend the diagrams
 
-#  8. Model Selected
-
-## Model Name  
-Holt-Winters Exponential Smoothing
-
-## Selection Reason  
-- Captures trend + seasonality  
-- Interpretable  
-- Lightweight  
-- Suitable for SMB-scale data  
-
-## Alternatives Considered  
-- LSTM (rejected: small per-SKU data & low interpretability)  
-- Prophet (rejected: complexity within 24-hour timeline)  
-
-## Evaluation Metrics  
-- Mean Absolute Percentage Error (MAPE)  
-- Residual Standard Deviation  
+- Class diagram shows primary data objects (`Item`, `SalesRecord`) and services; add new domain fields to `models.py` and mirror them in cleaning/upsert logic in `routes/items.py`.
+- Sequence diagrams show the idealised request/response paths—use them while writing new endpoints or when adding middleware (auth, rate limits, observability hooks).
+- Component diagram indicates where to scale (move DB off SQLite, run a WSGI server, containerise the app).
 
 ---
 
-#  9. Technology Stack
+If you'd like, I can also:
+- Generate PNG/SVG exports of these Mermaid diagrams and add them to the repo (`/docs/diagrams`) and update the README with inline image references.
+- Produce a downloadable developer onboarding checklist (local setup, common issues, debug checklist).
 
-Frontend: React + Vite (Recharts)  
-Backend API: Node.js (Express, Mongoose)  
-Database: MongoDB  
-ML Pipeline: Python (statsmodels, pandas, numpy)  
-Deployment: Render + Vercel  
+Which of those would you like me to do next? (I can export diagrams and commit them.)
 
----
-
-#  10. API Endpoints
-
-- GET /api/skus (Retrieve all SKUs)
-- GET /api/skus?sku_id={sku_id} (Retrieve data for a specific SKU)
-- POST /api/skus (Push calculated forecast data into DB)
-
----
-
-#  11. End-to-End Workflow
-
-1. User selects SKU  
-2. Backend retrieves historical data  
-3. Weekly seasonality modeled  
-4. Holt-Winters forecasting applied  
-5. 30-day forecast generated  
-6. Confidence interval computed  
-7. Safety stock calculated  
-8. Reorder point generated  
-9. Results displayed on dashboard  
-
----
-
-#  12. Future Scope
-
-Short-Term:
-- SKU volatility classification  
-- Multi-store modeling  
-
-Long-Term:
-- Promotion-aware forecasting  
-- Hierarchical category forecasting  
-- Real-time demand streaming  
-
----
-
-#  13. Known Limitations
-
-- Assumes historical patterns persist  
-- Does not include promotional features  
-- No external regressors  
-
----
-
-#  14. Impact
-
-- Reduces stockouts  
-- Reduces overstocking  
-- Improves inventory planning  
-- Enables data-driven decision making  
+A new `src/forecast_service.py` was added as a thin Flask-friendly service layer that:
+- Converts SQLAlchemy `SalesRecord` objects into `pd.Series`
+- Calls `DemandForecaster` methods
+- Serialises results to JSON-ready dicts
+- Handles train/test split and metrics evaluation
