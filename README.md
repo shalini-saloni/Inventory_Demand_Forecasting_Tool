@@ -3,6 +3,7 @@
 A full-stack SaaS-style application for SKU-level demand forecasting, seasonality analysis, and intelligent restocking recommendations.
 
 Deployed Link - https://inventory-demand-forecasting-tool-1.onrender.com
+<br/>
 Drive Link - https://drive.google.com/drive/folders/1G3Eas_5vCFOeTlRMrlTjFtt8DJTqj7EL?usp=sharing
 
 ---
