@@ -224,10 +224,11 @@ This section documents the full request-to-response flow, the major components, 
 flowchart LR
     A[Browser - React UI] -->|POST/GET| B[Flask REST API]
     B --> C[ForecastService]
-    C --> D[DemandForecaster (statsmodels)]
-    B --> E[DataCleaner (pandas)]
-    B --> F[SQLite (SQLAlchemy)]
-    A -->|Websocket/HTTP| G[Charts/Visuals]
+    C --> D[DemandForecaster<br/>statsmodels]
+    B --> E[DataCleaner<br/>pandas]
+    B --> F[SQLite DB<br/>SQLAlchemy]
+    A -->|HTTP| G[Charts & Visuals]
+
     style A fill:#f3fff0,stroke:#2e7d32
     style B fill:#eef7ff,stroke:#1565c0
     style D fill:#fff7e6,stroke:#ff9800
@@ -349,14 +350,3 @@ sequenceDiagram
 
 ---
 
-If you'd like, I can also:
-- Generate PNG/SVG exports of these Mermaid diagrams and add them to the repo (`/docs/diagrams`) and update the README with inline image references.
-- Produce a downloadable developer onboarding checklist (local setup, common issues, debug checklist).
-
-Which of those would you like me to do next? (I can export diagrams and commit them.)
-
-A new `src/forecast_service.py` was added as a thin Flask-friendly service layer that:
-- Converts SQLAlchemy `SalesRecord` objects into `pd.Series`
-- Calls `DemandForecaster` methods
-- Serialises results to JSON-ready dicts
-- Handles train/test split and metrics evaluation
