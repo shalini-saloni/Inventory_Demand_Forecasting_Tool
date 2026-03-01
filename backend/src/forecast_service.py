@@ -56,24 +56,31 @@ class ForecastService:
         metrics = {}
         if len(test_series) > 0:
             try:
-                metrics["ses"] = self.engine.evaluate(series, ses_res.get("fitted", pd.Series([], dtype=float)))
-                metrics["hw"]  = self.engine.evaluate(series, hw_res.get("fitted", pd.Series([], dtype=float)))
+                metrics["ses"] = self.engine.evaluate(test_series, ses_res.get("forecast", pd.Series([], dtype=float)))
+                metrics["hw"]  = self.engine.evaluate(test_series, hw_res.get("forecast", pd.Series([], dtype=float)))
             except Exception:
                 metrics = {}
 
-        primary_forecast = hw_res["forecast"]
+        # Use the FULL model for actual future predictions, not the train-split model
+        primary_forecast = hw_fitted_full["forecast"]
         restock = self.engine.restocking_recommendation(
             primary_forecast, current_stock, lead_time, safety_factor
         )
 
-        method_map = {"moving_average": ma_res, "ses": ses_res, "holt_winters": hw_res}
-        selected   = method_map.get(method, hw_res)
+        full_method_map = {
+            "moving_average": lambda: self.engine.moving_average_forecast(series, window=7, horizon=horizon),
+            "ses": lambda: self.engine.exponential_smoothing_forecast(series, horizon=horizon),
+            "holt_winters": lambda: hw_fitted_full
+        }
+        
+        # Only compute the full model for the selected method to save time
+        selected_full = full_method_map.get(method, full_method_map["holt_winters"])()
 
         return {
             "historical":   _series_to_list(series),
-            "forecast":     _series_to_list(selected["forecast"]),
-            "ci_upper":     _series_to_list(selected["ci_upper"]),
-            "ci_lower":     _series_to_list(selected["ci_lower"]),
+            "forecast":     _series_to_list(selected_full["forecast"]),
+            "ci_upper":     _series_to_list(selected_full["ci_upper"]),
+            "ci_lower":     _series_to_list(selected_full["ci_lower"]),
             "all_forecasts": {
                 "moving_average": _series_to_list(ma_res["forecast"]),
                 "ses":            _series_to_list(ses_res["forecast"]),
@@ -93,6 +100,37 @@ class ForecastService:
             "seasonal":     (bool(hw_res.get("seasonal")) if hw_res.get("seasonal") is not None else None),
             "train_size":   len(train_series),
             "test_size":    len(test_series),
+        }
+
+    def fast_restock_forecast(
+        self,
+        series:         pd.Series,
+        horizon:        int   = Config.DEFAULT_HORIZON,
+        current_stock:  int   = Config.DEFAULT_CURRENT_STOCK,
+        lead_time:      int   = Config.DEFAULT_LEAD_TIME,
+        safety_factor:  float = Config.DEFAULT_SAFETY_FACTOR,
+    ) -> Dict[str, Any]:
+        """A lightweight forecasting method that ONLY fits a single Holt-Winters model on the full series
+        to return the restock recommendation. This avoids out-of-memory errors on bulk evaluations."""
+        if len(series) < 14:
+            raise ValueError(f"Insufficient data: need ≥14 days, got {len(series)}.")
+
+        # Fit Holt-Winters on the entire series for actual future predictions
+        hw_res = self.engine.holt_winters_forecast(series, horizon=horizon)
+        
+        primary_forecast = hw_res["forecast"]
+        restock = self.engine.restocking_recommendation(
+            primary_forecast, current_stock, lead_time, safety_factor
+        )
+
+        return {
+            "restock": {
+                k: (int(v) if isinstance(v, (np.integer,))
+                    else float(v) if isinstance(v, (np.floating,))
+                    else bool(v) if isinstance(v, (np.bool_,))
+                    else v)
+                for k, v in restock.items()
+            }
         }
 
     def decompose(self, series: pd.Series) -> Dict[str, Any]:

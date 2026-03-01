@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Upload, Package, TrendingUp,
-  BarChart3, ShoppingCart, LogOut, Leaf
+  BarChart3, LogOut, Leaf
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -11,7 +11,6 @@ const NAV = [
   { to: '/items', icon: Package, label: 'Items' },
   { to: '/forecast', icon: TrendingUp, label: 'Forecast' },
   { to: '/decompose', icon: BarChart3, label: 'Decomposition' },
-  { to: '/restock', icon: ShoppingCart, label: 'Restock' },
 ]
 
 export default function Sidebar() {

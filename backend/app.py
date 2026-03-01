@@ -33,10 +33,9 @@ def create_app(env: str = "development") -> Flask:
     from routes.auth      import auth_bp
     from routes.items     import items_bp
     from routes.forecast  import forecast_bp
-    from routes.restock   import restock_bp
     from routes.dashboard import dashboard_bp
 
-    for bp in (auth_bp, items_bp, forecast_bp, restock_bp, dashboard_bp):
+    for bp in (auth_bp, items_bp, forecast_bp, dashboard_bp):
         app.register_blueprint(bp)
 
     # ── Health check ──────────────────────────────────────────────────────
