@@ -7,9 +7,9 @@ import {
 import api from '../services/api'
 
 export default function Restock() {
-  const [data,    setData]    = useState(null)
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
+  const [error, setError] = useState('')
 
   const load = () => {
     setLoading(true); setError('')
@@ -36,7 +36,7 @@ export default function Restock() {
         </button>
       </div>
 
-      {error   && <div className="alert alert-error">{error}</div>}
+      {error && <div className="alert alert-error">{error}</div>}
       {loading && <div className="loader-wrap"><div className="spinner" /><span>Generating recommendations…</span></div>}
 
       {data && !loading && (
@@ -56,7 +56,7 @@ export default function Restock() {
               <div className="stat-label">Total SKUs Analysed</div>
               <div className="stat-value">{recs.length}</div>
             </div>
-            <div className="stat-card alert">
+            <div className="stat-card is-alert">
               <div className="stat-label">Reorder Alerts</div>
               <div className="stat-value">{data.low_stock_count}</div>
             </div>

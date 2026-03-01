@@ -7,9 +7,9 @@ import api from '../services/api'
 const STORE = 'store_1'
 
 export default function Dashboard() {
-  const [data,    setData]    = useState(null)
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState('')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     api.get(`/dashboard?store_id=${STORE}`)
@@ -19,13 +19,13 @@ export default function Dashboard() {
   }, [])
 
   if (loading) return <div className="loader-wrap"><div className="spinner" /><span>Loading dashboard…</span></div>
-  if (error)   return <div className="alert alert-error">{error}</div>
+  if (error) return <div className="alert alert-error">{error}</div>
 
   const stats = [
-    { label: 'Total SKUs',    value: data.total_skus,          icon: Package,     color: '' },
-    { label: 'Total Sales',   value: data.total_sales.toLocaleString(), icon: TrendingUp, color: '' },
-    { label: 'Avg Daily Demand', value: data.avg_demand.toFixed(1), icon: BarChart2, color: 'blue' },
-    { label: 'Low Stock SKUs', value: data.low_stock_count,   icon: AlertTriangle, color: 'alert' },
+    { label: 'Total SKUs', value: data.total_skus, icon: Package, color: '' },
+    { label: 'Total Sales', value: data.total_sales.toLocaleString(), icon: TrendingUp, color: '' },
+    { label: 'Avg Daily Demand', value: data.avg_demand.toFixed(1), icon: BarChart2, color: 'is-blue' },
+    { label: 'Low Stock SKUs', value: data.low_stock_count, icon: AlertTriangle, color: 'is-alert' },
   ]
 
   return (
@@ -65,7 +65,7 @@ export default function Dashboard() {
               <AreaChart data={data.trend_chart} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <defs>
                   <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#7CB87A" stopOpacity={0.25} />
+                    <stop offset="5%" stopColor="#7CB87A" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="#7CB87A" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
