@@ -126,9 +126,9 @@ body {
   background: var(--pista);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
-.stat-card.alert::before { background: var(--red); }
-.stat-card.amber::before { background: var(--amber); }
-.stat-card.blue::before  { background: var(--blue); }
+.stat-card.is-alert::before { background: var(--red); }
+.stat-card.is-amber::before { background: var(--amber); }
+.stat-card.is-blue::before  { background: var(--blue); }
 .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 
 .stat-label { font-size: 0.75rem; font-weight: 500; color: var(--ink-light); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }

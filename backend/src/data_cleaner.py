@@ -2,8 +2,8 @@ import pandas as pd
 import numpy as np
 from typing import Tuple
 
-def clean_dataframe(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
 
+def clean_dataframe(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     report = {
         'original_shape':   df.shape,
         'steps':            [],
@@ -52,20 +52,25 @@ def clean_dataframe(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
     total_capped = 0
     def cap_outliers(group):
         nonlocal total_capped
+        key = getattr(group, 'name', None)
+        group = group.copy()
+        if 'item_id' not in group.columns and key is not None:
+            group['item_id'] = key
+
         q1  = group['sales'].quantile(0.25)
         q3  = group['sales'].quantile(0.75)
         iqr = q3 - q1
         upper = q3 + 3.0 * iqr          
         n = (group['sales'] > upper).sum()
         total_capped += n
-        group = group.copy()
         group['sales'] = group['sales'].clip(upper=upper)
         return group
 
     df = df.groupby('item_id', group_keys=False).apply(cap_outliers)
+    df = df.reset_index()
     df['sales'] = df['sales'].round(0).astype(int)
     report['steps'].append(f'Outliers capped at Q3 + 3×IQR per item: {total_capped} values')
-    
+
     df, filled_rows = _fill_missing_dates(df)
     report['steps'].append(f'Missing calendar days filled with 0 sales: {filled_rows} rows added')
 
@@ -75,6 +80,7 @@ def clean_dataframe(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
 
     report['final_shape'] = df.shape
     return df, report
+
 
 def _fill_missing_dates(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
     group_cols = ['item_id']
@@ -93,7 +99,10 @@ def _fill_missing_dates(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
         if isinstance(keys, str):
             keys = (keys,)
         for col, val in zip(group_cols, keys):
-            grp[col] = grp[col].fillna(val)
+            if col in grp.columns:
+                grp[col] = grp[col].fillna(val)
+            else:
+                grp[col] = val
 
         n_before = grp['sales'].isna().sum()
         grp['sales'] = grp['sales'].fillna(0).astype(int)
@@ -113,5 +122,3 @@ def print_cleaning_report(report: dict):
     for i, step in enumerate(report['steps'], 1):
         print(f"    {i}. {step}")
     print(f"{'─'*55}\n")
-
-    
